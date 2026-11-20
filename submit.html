@@ -39,6 +39,19 @@
   .nm-row .who { font: 700 1.05rem var(--display); margin-bottom: 8px; }
   .nm-row label { display: flex; gap: 10px; align-items: flex-start; font-size: .88rem; line-height: 1.45; color: #d4dce5; cursor: pointer; }
   .nm-row input { width: 18px; height: 18px; flex: none; margin-top: 1px; accent-color: #16a34a; }
+  /* photo crop */
+  .crop-frame { position: relative; width: 100%; aspect-ratio: 4/3; border-radius: 12px; overflow: hidden; background: #05070a;
+    border: 1px solid var(--line-2); touch-action: none; cursor: grab; }
+  .crop-frame:active { cursor: grabbing; }
+  .crop-frame canvas { width: 100%; height: 100%; display: block; }
+  .crop-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px);
+    background-size: 33.333% 33.333%; background-position: -1px -1px; opacity: 0; transition: opacity .2s; }
+  .crop-frame.dragging::after { opacity: 1; }
+  .crop-tools { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .crop-tools input[type=range] { flex: 1; min-width: 140px; padding: 0; accent-color: var(--live); background: none; border: 0; box-shadow: none; }
+  .crop-tools .btn { min-width: 40px; }
+  .photo-actions { display: flex; gap: 8px; margin-top: 10px; }
   /* photo check / consent flow */
   .flow { position: fixed; inset: 0; z-index: 60; background: rgba(3,5,8,.78); backdrop-filter: blur(6px); overflow-y: auto; padding: 24px 16px; }
   .flow-box { max-width: 760px; margin: 0 auto; padding: 26px; }
@@ -117,6 +130,7 @@
     <label class="field">
       <div class="drop" id="drop"><input type="file" id="photo" accept="image/*"><span id="dropTxt"></span></div>
     </label>
+    <div class="photo-actions" id="photoActions" hidden><button class="btn sm" id="adjustBtn" type="button">✂ Adjust crop</button></div>
 
     <div class="sec">Submit</div>
     <label class="field"><span>Submission code (from your instructor)</span><input id="code" autocomplete="off"></label>
@@ -129,6 +143,27 @@
     <p class="pv-note">On the leaderboard, long comments are shortened to a few lines; viewers can click your card to read everything.</p>
   </aside>
 </main>
+<!-- photo crop (opens when a photo is chosen) -->
+<div class="flow" id="cropper" hidden>
+  <div class="flow-box panel">
+    <h2>Position your photo</h2>
+    <p class="sub"><b>Drag</b> to move and <b>zoom</b> with the slider (or scroll / pinch). Everything inside the frame appears on your team card.
+      The whole photo fits by default; zoom in only if you want to crop.</p>
+    <div class="crop-frame" id="cropFrame"><canvas id="cropCanvas" width="1200" height="900"></canvas></div>
+    <div class="crop-tools">
+      <button class="btn sm" id="zoomOut" type="button" title="Zoom out">−</button>
+      <input type="range" id="zoom" min="0" max="1000" value="0" aria-label="Zoom">
+      <button class="btn sm" id="zoomIn" type="button" title="Zoom in">+</button>
+      <button class="btn sm ghost" id="fitBtn" type="button">Fit whole photo</button>
+      <button class="btn sm ghost" id="fillBtn" type="button">Fill frame</button>
+    </div>
+    <div class="flow-btns">
+      <button class="btn ghost" id="cropCancel" type="button">Cancel</button>
+      <button class="btn primary" id="cropOk" type="button">Use this photo</button>
+    </div>
+  </div>
+</div>
+
 <!-- confirmation steps shown after "Submit": name consent, photo check, photo consent (only the ones needed) -->
 <div class="flow" id="flow" hidden>
   <div class="flow-box panel">
@@ -254,23 +289,110 @@ function preview() {
 
 // ---- photo: resize to max 1200px JPEG in the browser
 const DROP_TXT = `Tap to choose a photo or drag one here<br><small class="muted">Photos with people's faces need everyone's consent · landscape works best · resized automatically</small>`;
-function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; }
+function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; $("photoActions").hidden = true; }
 resetDrop();
+// ---- photo: choose -> crop/position in a 4:3 frame -> 1200x900 JPEG
+let srcImg = null, srcName = "";
 async function handleFile(f) {
   if (!f || !f.type.startsWith("image/")) return toast("⚠ Please choose an image file", true);
   try {
     const url = URL.createObjectURL(f);
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-    const s = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+    // Work from a copy at most 2400 px on its long side (keeps phones responsive).
+    const k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
     const c = document.createElement("canvas");
-    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    photoData = c.toDataURL("image/jpeg", .85);
     URL.revokeObjectURL(url);
-    $("dropTxt").innerHTML = `✓ ${esc(f.name)} <small class="muted">(${c.width}×${c.height}, ${Math.round(photoData.length * .75 / 1024)} KB) · click to change</small>`;
-    preview();
+    const prev = { srcImg, srcName };
+    srcImg = c; srcName = f.name;
+    if (!(await openCropper(true))) { srcImg = prev.srcImg; srcName = prev.srcName; }   // cancelled: keep old photo
   } catch (e) { toast("⚠ Could not read that image (try JPG or PNG)", true); }
+  $("photo").value = "";
 }
+$("adjustBtn").onclick = () => srcImg && openCropper(false);
+
+const OUT_W = 1200, OUT_H = 900;
+const crop = { s: 1, cx: 0, cy: 0, min: 1, fill: 1, max: 4 };
+let cropResolve = null, bgCache = null;
+function openCropper(fresh) {
+  const w = srcImg.width, h = srcImg.height;
+  crop.min = Math.min(OUT_W / w, OUT_H / h);        // whole photo visible
+  crop.fill = Math.max(OUT_W / w, OUT_H / h);       // frame fully covered
+  crop.max = crop.fill * 4;
+  if (fresh || !crop.used) { crop.s = crop.min; crop.cx = w / 2; crop.cy = h / 2; }
+  bgCache = null; syncSlider(); drawCrop();
+  $("cropper").hidden = false; document.body.style.overflow = "hidden";
+  return new Promise(res => cropResolve = res);
+}
+function closeCropper(ok) {
+  $("cropper").hidden = true; document.body.style.overflow = "";
+  if (ok) {
+    crop.used = true;
+    photoData = $("cropCanvas").toDataURL("image/jpeg", .85);
+    $("dropTxt").innerHTML = `✓ ${esc(srcName)} <small class="muted">(${OUT_W}×${OUT_H}, ${Math.round(photoData.length * .75 / 1024)} KB) · click to choose a different photo</small>`;
+    $("photoActions").hidden = false; preview();
+  }
+  cropResolve && cropResolve(ok); cropResolve = null;
+}
+$("cropOk").onclick = () => closeCropper(true);
+$("cropCancel").onclick = () => closeCropper(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("cropper").hidden) closeCropper(false); });
+
+function clampCrop() {
+  const w = srcImg.width, h = srcImg.height;
+  crop.s = Math.min(crop.max, Math.max(crop.min, crop.s));
+  // Larger than the frame: no empty edge. Smaller: stays inside the frame.
+  const lim = (c, I, F) => { const a = F / (2 * crop.s), b = I - a; return Math.min(Math.max(a, b), Math.max(Math.min(a, b), c)); };
+  crop.cx = lim(crop.cx, w, OUT_W); crop.cy = lim(crop.cy, h, OUT_H);
+}
+function drawCrop() {
+  clampCrop();
+  const ctx = $("cropCanvas").getContext("2d"), w = srcImg.width, h = srcImg.height;
+  ctx.fillStyle = "#0b0f14"; ctx.fillRect(0, 0, OUT_W, OUT_H);
+  if (w * crop.s < OUT_W - 1 || h * crop.s < OUT_H - 1) {
+    // empty edges: fill with a dimmed, blurred copy of the photo
+    if (!bgCache) {
+      bgCache = document.createElement("canvas"); bgCache.width = OUT_W / 8; bgCache.height = OUT_H / 8;
+      const b = bgCache.getContext("2d"), f = crop.fill / 8;
+      b.drawImage(srcImg, (OUT_W / 8 - w * f) / 2, (OUT_H / 8 - h * f) / 2, w * f, h * f);
+    }
+    ctx.save(); ctx.filter = "blur(6px) brightness(.45)"; ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bgCache, -40, -30, OUT_W + 80, OUT_H + 60); ctx.restore();
+  }
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(srcImg, OUT_W / 2 - crop.cx * crop.s, OUT_H / 2 - crop.cy * crop.s, w * crop.s, h * crop.s);
+}
+// slider is logarithmic between "fit" and 4x "fill"
+const zoomToSlider = s => Math.round(1000 * Math.log(s / crop.min) / Math.log(crop.max / crop.min || 2));
+const sliderToZoom = v => crop.min * Math.pow(crop.max / crop.min, v / 1000);
+function syncSlider() { $("zoom").value = zoomToSlider(crop.s); }
+function zoomTo(s) { crop.s = s; drawCrop(); syncSlider(); }
+$("zoom").oninput = e => { crop.s = sliderToZoom(+e.target.value); drawCrop(); };
+$("zoomIn").onclick = () => zoomTo(crop.s * 1.15);
+$("zoomOut").onclick = () => zoomTo(crop.s / 1.15);
+$("fitBtn").onclick = () => { crop.cx = srcImg.width / 2; crop.cy = srcImg.height / 2; zoomTo(crop.min); };
+$("fillBtn").onclick = () => zoomTo(crop.fill);
+$("cropFrame").addEventListener("wheel", e => { e.preventDefault(); zoomTo(crop.s * Math.exp(-e.deltaY * .0015)); }, { passive: false });
+// drag to pan, two fingers to pinch-zoom
+const ptrs = new Map(); let pinch0 = null;
+const fr = $("cropFrame");
+fr.addEventListener("pointerdown", e => { fr.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e); fr.classList.add("dragging"); pinch0 = null; });
+fr.addEventListener("pointermove", e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const k = OUT_W / fr.clientWidth;                 // screen px -> output px
+  if (ptrs.size === 1) {
+    const p = ptrs.get(e.pointerId);
+    crop.cx -= (e.clientX - p.clientX) * k / crop.s; crop.cy -= (e.clientY - p.clientY) * k / crop.s;
+    ptrs.set(e.pointerId, e); drawCrop();
+  } else {
+    ptrs.set(e.pointerId, e);
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (pinch0) zoomTo(pinch0.s * d / pinch0.d); else pinch0 = { d, s: crop.s };
+  }
+});
+const endPtr = e => { ptrs.delete(e.pointerId); pinch0 = null; if (!ptrs.size) fr.classList.remove("dragging"); };
+fr.addEventListener("pointerup", endPtr); fr.addEventListener("pointercancel", endPtr);
 $("drop").onclick = e => { if (e.target.id !== "photo") $("photo").click(); };
 $("photo").onchange = e => handleFile(e.target.files[0]);
 $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };

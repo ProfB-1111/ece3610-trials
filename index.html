@@ -141,6 +141,13 @@
   @keyframes bannerIn { 10% { opacity: 1; transform: translate(-50%,-50%) scale(1) } 80% { opacity: 1; transform: translate(-50%,-50%) scale(1) } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.05) } }
 
   /* ---------- responsive ---------- */
+  /* shorter laptop screens: let the page scroll instead of squeezing the spotlight card */
+  @media (max-height: 960px) and (min-width: 1051px) {
+    body { display: block; overflow: auto; }
+    .stage { grid-template-rows: auto auto; }
+    .card { min-height: 430px; }
+    .rows { overflow: visible; }
+  }
   @media (max-width: 1050px) {
     body { overflow: auto; display: block; }
     .grid { grid-template-columns: 1fr; }
@@ -416,7 +423,7 @@ function renderCard(fromData) {
   body.innerHTML = html;
   if (item.kind === "team") { body.dataset.team = item.team; body.style.cursor = "pointer"; body.title = "Click to read the full team card"; }
   else { delete body.dataset.team; body.style.cursor = ""; body.title = ""; }
-  if (item.kind === "how") renderHowItWorks($("howCard"));
+  if (item.kind === "how") renderHowItWorks($("howCard"), { compact: true });
   $("cardLabel").className = cls;
   $("cardLabel").innerHTML = (cur || nxt ? `<span class="dot"></span>` : "") + label;
   cardKey = key;

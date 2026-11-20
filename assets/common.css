@@ -148,7 +148,8 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .qa.ph p { color: var(--dim); font-style: italic; }
 .qa.ph { border-left-color: var(--line-2); }
 /* compact (leaderboard spotlight): photo shrinks so stats + runs always fit */
-.tcard:not(.full):not(.stack) .tc-ph { aspect-ratio: auto; flex: 1 1 0; min-height: 80px; }
+.tcard:not(.full):not(.stack) .tc-ph { aspect-ratio: auto; flex: 1 1 0; min-height: 80px;
+  background-size: contain; background-repeat: no-repeat; background-position: center; background-color: #05070a; }  /* never crop the team's photo */
 .tcard:not(.full):not(.stack) .tc-left { min-height: 0; }
 /* stacked (narrow / preview): photo, name + comments, then stats + runs */
 .tcard.stack { display: flex; flex-direction: column; gap: 14px; }
@@ -176,5 +177,34 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 }
 .how-steps b { display: block; font-family: var(--display); font-size: 1.02rem; margin-bottom: 2px; }
 .how-steps p { margin: 0; color: var(--muted); line-height: 1.45; font-size: .92rem; }
+.how-h { font: 700 .78rem var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin: 26px 0 12px; }
+.how-fig { margin: 0 0 6px; }
+.how-fig img { width: 100%; display: block; border-radius: 12px; border: 1px solid var(--line); }
+.how-fig figcaption { font-size: .8rem; color: var(--dim); margin-top: 6px; text-align: center; }
+.seqs { display: flex; flex-direction: column; gap: 10px; }
+.seq { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(255,255,255,.02); }
+.seq .gest { font: 600 .78rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.seq .gest b { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; border-radius: 8px; font: 700 1.05rem var(--mono); color: var(--text); background: var(--panel-2); border: 1px solid var(--line-2); }
+.seq .arr { color: var(--dim); }
+.tchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .84rem; font-weight: 600; white-space: nowrap;
+  color: #fff; background: color-mix(in srgb, var(--c) 22%, transparent); border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); }
+.tchip b { color: var(--c); font-family: var(--mono); }
+.seq .home { padding: 4px 10px; border-radius: 8px; font-size: .84rem; font-weight: 700; color: #0b1a0b; background: #8fcf74; }
+.tasks { display: grid; gap: 10px; }
+.task { display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-2); border-left: 4px solid var(--c); }
+.task .tnum { font: 700 1.1rem var(--mono); color: var(--c); }
+.task b { font-family: var(--display); font-size: 1.05rem; }
+.task p { margin: 3px 0 0; color: var(--muted); line-height: 1.5; font-size: .93rem; }
+.bonus { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(245,196,81,.07); border: 1px solid rgba(245,196,81,.3); }
+.bonus b { color: var(--gold); }
+.bonus p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.how-compact { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.how-compact .how-fig figcaption { display: none; }
+.how-compact .how-intro { font-size: .88rem; margin-bottom: 10px; }
+.how-compact .seq { padding: 8px 10px; gap: 5px 6px; }
+.how-compact .tchip { font-size: .76rem; padding: 3px 8px; }
+.how-compact .seq .home, .how-compact .seq .gest { font-size: .72rem; }
+.how-more { font-size: .78rem; color: var(--dim); margin: 10px 0 0; }
+@media (max-width: 640px) { .how-compact { grid-template-columns: 1fr; } }
 .how-gloss { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted); }
 .how-gloss b { font-family: var(--mono); color: var(--text); margin-right: 6px; }

@@ -71,12 +71,36 @@ window.TRIALS_CONFIG = {
 
   // "How It Works" — shown via button, in the idle rotation, and on rules.html
   HOW_IT_WORKS: {
-    intro: "Student teams designed, built and programmed autonomous robots to complete the course as fast as possible — no remote control allowed.",
+    intro: "Every team designed, built and programmed an autonomous robot. Once a run starts there is no remote control: a single gesture tells the robot which order to do its three tasks in, and it must complete all of them on its own and finish back at HOME.",
+
+    image: { src: "assets/course.jpg",
+             alt: "Overhead photo of the course: HOME at the bottom center, a long winding line to the left, a line to a bucket on the right, and a short straight line to a colored marker",
+             caption: "The course from above. Every run starts and ends at HOME." },
+
+    sequenceIntro: "The team gives its robot one gesture, a 0 or a 1, which sets the order of the tasks. Color sensing always comes last.",
+    sequences: [
+      { gesture: "0", order: ["line", "wall", "color"] },
+      { gesture: "1", order: ["wall", "line", "color"] }
+    ],
+
+    // num/color match the annotated course photo
+    tasks: {
+      line:  { num: 1, name: "Line following", color: "#FFC000",
+               text: "From HOME, the robot follows the long, winding black line all the way to its end, turns around, and follows the same line back to HOME." },
+      wall:  { num: 2, name: "Wall following", color: "#ED7D31",
+               text: "The robot follows the black line out to the bucket, then drives all the way around it, using its ultrasonic sensors to hold a steady distance from the bucket's wall, before following the line back to HOME." },
+      color: { num: 3, name: "Color sensing", color: "#4472C4",
+               text: "The robot follows the short straight line from HOME and reads the color of the marker at its end. It turns 180° in the direction the color calls for, right for red and left for blue, then follows the line back to HOME." }
+    },
+
+    bonus: { title: "Bonus challenge: odometry",
+             text: "Teams can also attempt odometry for extra course credit: tracking the robot's position from measurements of its own wheel motion." },
+
+    rulesTitle: "Runs and scoring",
     steps: [
-      { title: "The course", text: "Robots start in the start box and must navigate the course to the finish zone on their own." },
-      { title: "The runs", text: "Each team gets up to 3 timed runs. The clock starts when the robot leaves the start box and stops when it reaches the finish." },
+      { title: "The runs", text: "Each team gets up to 3 timed runs. A run is timed from the start until the robot is back at HOME after its final task." },
       { title: "Scoring", text: "A team's best single run determines its rank. Average time is shown for reference." },
-      { title: "DNF", text: "A run is a DNF (did not finish) if the robot leaves the course, gets stuck, or is touched by a team member." },
+      { title: "DNF", text: "A run is a DNF (did not finish) if the robot can't complete a task, leaves the course, or is touched by a team member." },
       { title: "Extra credit", text: "The top 3 teams on the final leaderboard earn extra credit." }
     ],
     glossary: [

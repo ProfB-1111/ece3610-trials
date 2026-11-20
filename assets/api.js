@@ -122,7 +122,7 @@
       runs.push({ id: crypto.randomUUID(), ts: new Date(t += 90e3).toISOString(), team: names[i],
         time: tm, status: tm == null ? "DNF" : "OK", notes: "" });
     }));
-    return { teams, runs, state: { currentTeam: "", nextTeam: "", timerState: "idle", timerStartMs: 0, timerElapsedMs: 0, updatedMs: Date.now() } };
+    return { teams, runs, state: { currentTeam: "", nextTeam: "", lastRunId: "", timerState: "idle", timerStartMs: 0, timerElapsedMs: 0, updatedMs: Date.now() } };
   }
 
   function demoLoad() {
@@ -154,17 +154,22 @@
           updatedMs: st.timerStartMs ? st.timerStartMs + body.elapsedMs : Date.now() });
         break;
       case "resetTimer": Object.assign(st, { timerState: "idle", timerStartMs: 0, timerElapsedMs: 0 }); break;
-      case "addRun":
-        d.runs.push({ id: crypto.randomUUID(), ts: new Date().toISOString(), team: body.team,
+      case "addRun": {
+        const id = crypto.randomUUID();
+        d.runs.push({ id, ts: new Date().toISOString(), team: body.team,
           time: body.time === "" || body.time == null ? null : Number(body.time), status: body.status || "OK", notes: body.notes || "" });
-        Object.assign(st, { timerState: "idle", timerStartMs: 0, timerElapsedMs: 0 });
+        Object.assign(st, { timerState: "done", timerStartMs: 0, timerElapsedMs: 0, lastRunId: id });
         break;
+      }
       case "updateRun": {
         const r = d.runs.find(x => x.id === body.id); if (!r) throw new Error("Run not found.");
         Object.assign(r, { time: body.time === "" || body.time == null ? null : Number(body.time), status: body.status, notes: body.notes || "" });
         break;
       }
-      case "deleteRun": d.runs = d.runs.filter(x => x.id !== body.id); break;
+      case "deleteRun":
+        d.runs = d.runs.filter(x => x.id !== body.id);
+        if (st.lastRunId === body.id) Object.assign(st, { timerState: "idle", lastRunId: "" });
+        break;
       case "submit": {
         const name = String(body.team || "").replace(/\s+/g, " ").trim();
         if (name.length < 2 || name.length > 40) throw new Error("Team name must be 2–40 characters.");

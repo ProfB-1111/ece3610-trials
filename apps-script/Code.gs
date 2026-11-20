@@ -27,7 +27,8 @@ const TEAM_HEADERS  = ['Team', 'Robot', 'Members', 'Comment', 'Interesting', 'Le
 // Private record of photo consent — this sheet is never published.
 const CONSENT_HEADERS = ['Timestamp', 'Team', 'Type', 'PhotoFileId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
 const RUN_HEADERS   = ['ID', 'Timestamp', 'Team', 'TimeSec', 'Status', 'Notes'];
-const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, updatedMs: 0 };
+// timerState: idle (at the start line) | running (on course) | stopped (finished, not saved) | done (run saved)
+const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, updatedMs: 0, lastRunId: '' };
 const MAX_TEXT = 400;       // per comment field
 const MAX_TEAM_NAME = 40;
 const MAX_MEMBERS = 8;
@@ -253,7 +254,7 @@ function addRun_(b) {
   if (status === 'OK' && !(time > 0)) throw new Error('Time must be a positive number of seconds.');
   const id = Utilities.getUuid();
   sh.appendRow([id, new Date(), String(b.team), time, status, clip_(b.notes, 200)]);   // real date, no time-zone guessing
-  writeState_({ timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0 });
+  writeState_({ timerState: 'done', timerStartMs: 0, timerElapsedMs: 0, lastRunId: id });   // "Run complete"
   return { ok: true, id: id };
 }
 
@@ -272,6 +273,7 @@ function deleteRun_(b) {
   const row = findRow_(sh, 0, b.id, false);
   if (!row) throw new Error('Run not found.');
   sh.deleteRow(row);
+  if (readState_().lastRunId === String(b.id)) writeState_({ timerState: 'idle', lastRunId: '' });   // its "Run complete" goes too
   return { ok: true };
 }
 

@@ -60,7 +60,10 @@
   .row.unranked .bt, .row.unranked .rk { color: var(--dim); }
   .row.running, .pod.running { outline: 1.5px solid var(--live); background: var(--live-soft); }
   .tag { display: inline-block; vertical-align: middle; margin-left: 10px; font: 700 .58rem var(--body); letter-spacing: .14em; padding: 2px 6px; border-radius: 4px; }
+  .tag.ready   { color: var(--text); border: 1px solid rgba(255,255,255,.35); }
   .tag.running { color: var(--live); border: 1px solid rgba(61,214,198,.5); animation: pulse 1.4s infinite; }
+  .tag.stopped { color: var(--gold); border: 1px solid rgba(245,196,81,.5); }
+  .tag.done    { color: var(--ok); border: 1px solid rgba(74,222,128,.5); }
   .tag.next { color: var(--warn); border: 1px solid rgba(251,191,36,.5); }
   .row.next, .pod.next { outline: 1px dashed rgba(251,191,36,.55); }
   .nextchip { background: rgba(0,0,0,.6); color: var(--warn); border-color: rgba(251,191,36,.45); text-transform: none; letter-spacing: .04em; font-size: .8rem; }
@@ -88,6 +91,7 @@
   .timer.running { color: var(--live); }
   .timer.stopped { color: var(--gold); animation: flash .5s 3; }
   .timer.idle { color: rgba(255,255,255,.55); }
+  .timer.done { color: var(--ok); }
   @keyframes flash { 50% { opacity: .3 } }
   .rec { color: #fff; background: var(--accent); }
   .rec .dot { animation: pulse 1.2s infinite; }
@@ -97,6 +101,7 @@
   .card { padding: 20px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .card-head .pill.live { animation: none; }
+  .card-head .pill.donepill { color: var(--ok); border-color: rgba(74,222,128,.45); background: rgba(74,222,128,.08); }
   .card-head .pill.nextpill { color: var(--warn); border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.08); }
   .progress { height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; width: 90px; }
   .progress i { display: block; height: 100%; background: var(--muted); width: 0; }
@@ -269,7 +274,11 @@ function render() {
   const cur = (data.state.currentTeam || "").toLowerCase();
   const nxt = (data.state.nextTeam || "").toLowerCase();
   const flag = t => { const k = t.team.toLowerCase(); return k === cur ? "running" : k === nxt ? "next" : ""; };
-  const tag = t => { const f = flag(t); return f ? `<span class="tag ${f}">${f === "running" ? "ON COURSE" : "UP NEXT"}</span>` : ""; };
+  const tag = t => {
+    const f = flag(t); if (!f) return "";
+    if (f === "next") return `<span class="tag next">UP NEXT</span>`;
+    const g = stageInfo(); return g ? `<span class="tag ${g.key}">${g.tag}</span>` : "";
+  };
   const ranked = list.filter(t => t.rank != null);
 
   // podium (display order 2,1,3)
@@ -328,6 +337,21 @@ function nextTeam() {
   return n ? list.find(t => t.team.toLowerCase() === n) || { team: data.state.nextTeam, runs: [] } : null;
 }
 
+// Stage of the team on course: ready -> running -> stopped -> done ("Run complete")
+function stageInfo() {
+  const t = curTeam(); if (!t || !data) return null;
+  const st = data.state, R = CFG.RUNS_PER_TEAM;
+  if (st.timerState === "done") {
+    const r = (t.runs || []).find(x => x.id === st.lastRunId) || (t.runs || [])[t.runs.length - 1];
+    if (r && r.status !== "OK") return { key: "done", tag: `RUN ${r.n} · ${r.status}`, label: `Run ${r.n} · ${r.status}`, detail: "", run: r };
+    return { key: "done", tag: "RUN COMPLETE", label: r ? `Run ${r.n} complete` : "Run complete", detail: r ? fmtTime(r.time) : "", run: r };
+  }
+  const n = (t.runs || []).length + 1, d = `Run ${n} / ${R}`;
+  if (st.timerState === "running") return { key: "running", tag: "ON COURSE", label: "On course", detail: d };
+  if (st.timerState === "stopped") return { key: "stopped", tag: "FINISHED", label: "Finished", detail: d };
+  return { key: "ready", tag: "AT START LINE", label: "At the start line", detail: d };
+}
+
 function renderStageInfo() {
   const t = curTeam(), st = data.state;
   const chip = $("nextChip");
@@ -337,9 +361,9 @@ function renderStageInfo() {
     $("camTeam").innerHTML = st.nextTeam ? `<small style="color:var(--warn)">Up next</small>${esc(st.nextTeam)}` : `<small>Standby</small>Waiting for next team`;
     return;
   }
-  const next = t.runs.length + 1;   // run in progress (not saved until the admin records it)
-  const label = st.timerState === "running" ? "On course" : st.timerState === "stopped" ? "Finished" : "At the start line";
-  $("camTeam").innerHTML = `<small>${label} · Run ${next} / ${CFG.RUNS_PER_TEAM}</small>${esc(t.team)}`;
+  const g = stageInfo();
+  const color = { ready: "var(--text)", running: "var(--live)", stopped: "var(--gold)", done: "var(--ok)" }[g.key];
+  $("camTeam").innerHTML = `<small style="color:${color}">${g.label}${g.detail ? " · " + g.detail : ""}</small>${esc(t.team)}`;
 }
 
 function tick() {
@@ -348,7 +372,12 @@ function tick() {
     let ms = 0, mode = "idle";
     if (st.timerState === "running") { ms = Date.now() + offset - DELAY - st.timerStartMs; mode = "running"; }
     else if (st.timerState === "stopped") { ms = st.timerElapsedMs; mode = "stopped"; }
-    const txt = fmtTime(Math.max(0, ms) / 1000);
+    let txt = null;
+    if (st.timerState === "done" && st.currentTeam) {      // show the official, saved result
+      const r = stageInfo()?.run; mode = "done";
+      if (r && r.status !== "OK") txt = r.status; else ms = r ? r.time * 1000 : 0;
+    }
+    txt = txt ?? fmtTime(Math.max(0, ms) / 1000);
     if (el.textContent !== txt) el.textContent = txt;
     if (!el.classList.contains(mode)) el.className = "timer mono " + mode;
   }
@@ -366,7 +395,12 @@ function rotationItems() {
 function renderCard(fromData) {
   const cur = curTeam(), nxt = nextTeam();
   let item, label, cls = "pill";
-  if (cur) { item = { kind: "team", team: cur.team }; label = { running: "On course", stopped: "Finished" }[data.state.timerState] || "At the start line"; cls = "pill live"; }
+  if (cur) {
+    const g = stageInfo();
+    item = { kind: "team", team: cur.team };
+    label = g.key === "done" ? g.label + (g.detail ? " · " + g.detail : "") : g.label;
+    cls = g.key === "done" ? "pill donepill" : "pill live";
+  }
   else if (nxt) { item = { kind: "team", team: nxt.team }; label = "Up next"; cls = "pill nextpill"; }
   else {
     const items = rotationItems();

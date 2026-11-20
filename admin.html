@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Timing Console · ECE 3610 Trials</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .top-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 20px; padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
+  .box { padding: 20px; }
+  .box + .box { margin-top: 20px; }
+  .box h2 { margin: 0 0 14px; font: 700 1rem var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+  .teamrow { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+  .teamrow select { font-size: 1.15rem; font-weight: 600; padding: 14px; }
+  .teammeta { margin-top: 10px; font-size: .85rem; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .teammeta b { color: var(--text); font-family: var(--mono); }
+  .warn { color: var(--warn); }
+  .upnext { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line-2); }
+  .upnext .upper { display: block; color: var(--muted); margin-bottom: 8px; }
+  .upnext select { font-size: 1rem; padding: 11px 14px; }
+
+  .sw { text-align: center; padding: 26px 0 10px; }
+  .sw-time { font: 700 clamp(4rem, 10vw, 7.5rem) var(--mono); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: rgba(255,255,255,.5); }
+  .sw-time.running { color: var(--live); }
+  .sw-time.stopped { color: var(--gold); }
+  .sw-state { margin-top: 10px; font-size: .75rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .sw-btns { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-top: 22px; }
+  .sw-main { font-size: 1.4rem; padding: 22px; border-radius: 14px; font-family: var(--display); letter-spacing: .08em; text-transform: uppercase; }
+  .sw-main.go { background: var(--live); border-color: var(--live); color: #04201d; }
+  .sw-main.go:hover { background: #5ae3d5; }
+  .sw-main.stop { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .kbd { font: 600 .7rem var(--mono); border: 1px solid currentColor; padding: 1px 6px; border-radius: 4px; opacity: .7; margin-left: 8px; }
+
+  .result { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .result .full { grid-column: 1 / -1; }
+  .result input.timein { font: 700 1.4rem var(--mono); }
+  .result-btns { display: flex; gap: 10px; justify-content: flex-end; grid-column: 1 / -1; }
+
+  .log { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  .log th { text-align: left; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); font-weight: 600; padding: 0 8px 8px; border-bottom: 1px solid var(--line); }
+  .log td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .log tr.sel td { background: var(--live-soft); }
+  .log td.t { font-family: var(--mono); font-weight: 700; }
+  .log td.dnf { color: var(--accent); }
+  .log td.act { text-align: right; white-space: nowrap; }
+  .log input, .log select { padding: 6px 8px; font-size: .85rem; }
+  .log-wrap { max-height: 70vh; overflow: auto; }
+  .lock { max-width: 420px; margin: 12vh auto; padding: 28px; }
+  .lock h2 { margin: 0 0 6px; font: 700 1.3rem var(--display); }
+  .lock p { color: var(--muted); font-size: .9rem; margin: 0 0 18px; }
+  .stand { display: grid; grid-template-columns: 30px 1fr auto; gap: 8px; font-size: .88rem; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .stand .mono { font-weight: 700; }
+  .stand.ec .mono:first-child { color: var(--gold); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logos" id="logos" hidden></div>
+    <div class="brand-mark" id="course">ECE 3610</div>
+    <div><div class="brand-title">Timing Console</div><div class="brand-sub" id="title"></div></div>
+  </div>
+  <div class="top-right">
+    <span class="pill" id="status"><span class="dot"></span><span>Connecting</span></span>
+    <a class="btn sm" href="index.html" target="_blank">Open leaderboard ↗</a>
+    <button class="btn sm ghost" id="lockBtn">Lock</button>
+  </div>
+</header>
+
+<!-- key gate -->
+<div class="lock panel" id="gate" hidden>
+  <h2>Admin key required</h2>
+  <p>Enter the <code>ADMIN_KEY</code> you set in the Apps Script. It's saved in this browser only.</p>
+  <label class="field"><span>Admin key</span><input type="password" id="keyIn" autocomplete="current-password"></label>
+  <button class="btn primary" id="keyBtn" style="width:100%">Unlock</button>
+</div>
+
+<main class="wrap" id="app" hidden>
+  <div>
+    <section class="box panel">
+      <h2>1 · Team on course</h2>
+      <div class="teamrow">
+        <select id="teamSel"><option value="">— Standby (no team) —</option></select>
+        <button class="btn" id="clearBtn" title="Set leaderboard to standby">Clear</button>
+      </div>
+      <div class="teammeta" id="teamMeta"></div>
+      <div class="upnext">
+        <span class="upper">Up next</span>
+        <div class="teamrow">
+          <select id="nextSel"><option value="">— None —</option></select>
+          <button class="btn live" id="promoteBtn" title="Move the up-next team onto the course">Send to course ↑</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="box panel">
+      <h2>2 · Stopwatch</h2>
+      <div class="sw">
+        <div class="sw-time" id="swTime">0:00.00</div>
+        <div class="sw-state" id="swState">Ready</div>
+      </div>
+      <div class="sw-btns">
+        <button class="btn sw-main go" id="swMain">Start<span class="kbd">SPACE</span></button>
+        <button class="btn" id="swReset">Reset<span class="kbd">ESC</span></button>
+      </div>
+    </section>
+
+    <section class="box panel">
+      <h2>3 · Record run</h2>
+      <div class="result">
+        <label class="field"><span>Time (m:ss.cc or seconds)</span><input class="timein" id="timeIn" placeholder="0:00.00" inputmode="decimal"></label>
+        <label class="field"><span>Result</span>
+          <select id="statusIn"><option value="OK">Completed</option><option value="DNF">DNF — did not finish</option><option value="DQ">DQ — disqualified</option></select>
+        </label>
+        <label class="field full"><span>Notes (optional, not shown publicly)</span><input id="notesIn" maxlength="200"></label>
+        <div class="result-btns">
+          <button class="btn ghost" id="discardBtn">Discard</button>
+          <button class="btn primary" id="saveBtn">Save run<span class="kbd">ENTER</span></button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="box panel">
+      <h2>Standings</h2>
+      <div id="standings"></div>
+    </section>
+    <section class="box panel">
+      <h2>Run log</h2>
+      <div class="log-wrap">
+        <table class="log"><thead><tr><th>Team</th><th>#</th><th>Time</th><th>Result</th><th></th></tr></thead><tbody id="log"></tbody></table>
+      </div>
+    </section>
+  </div>
+</main>
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script>
+const { CFG, DEMO, esc, fmtTime, parseTime, standings, getData, post, store } = Trials;
+const $ = id => document.getElementById(id);
+Trials.renderLogos($("logos"));
+$("course").textContent = CFG.COURSE;
+$("title").textContent = CFG.TITLE + (DEMO ? " · DEMO MODE" : "") +
+  (CFG.CAMERA_MODE !== "local" && CFG.STREAM_DELAY_MS ? ` · viewers see updates ${(CFG.STREAM_DELAY_MS / 1000).toFixed(1)} s later` : "");
+
+let KEY = store.get("ece3610_admin_key", "");
+let data = null, list = [];
+
+function toast(msg, err) {
+  const el = document.createElement("div"); el.className = "toast" + (err ? " err" : ""); el.innerHTML = msg;
+  $("toasts").appendChild(el); setTimeout(() => el.remove(), err ? 7000 : 3500);
+}
+async function act(action, payload = {}) {
+  try { return await post(action, { key: KEY, ...payload }); }
+  catch (e) {
+    toast("⚠ " + esc(e.message), true);
+    if (/admin key/i.test(e.message)) lock();
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------- key gate
+function lock() { KEY = ""; store.set("ece3610_admin_key", ""); $("app").hidden = true; $("gate").hidden = false; $("keyIn").focus(); }
+async function unlock(k) {
+  try { await post("checkKey", { key: k }); KEY = k; store.set("ece3610_admin_key", k); $("gate").hidden = true; $("app").hidden = false; refresh(); }
+  catch (e) { toast("⚠ " + esc(e.message), true); lock(); }
+}
+$("keyBtn").onclick = () => unlock($("keyIn").value.trim());
+$("keyIn").onkeydown = e => { if (e.key === "Enter") $("keyBtn").click(); };
+$("lockBtn").onclick = lock;
+if (DEMO || KEY) unlock(KEY || "demo"); else lock();
+
+// ---------------------------------------------------------------- data
+async function refresh() {
+  try {
+    data = await getData(); list = standings(data);
+    $("status").className = "pill " + (DEMO ? "demo" : "live");
+    $("status").innerHTML = `<span class="dot"></span><span>${DEMO ? "Demo" : "Connected"}</span>`;
+    renderTeams(); renderLog(); renderStandings(); renderMeta();
+  } catch (e) {
+    $("status").className = "pill err"; $("status").innerHTML = `<span class="dot"></span><span>Offline</span>`;
+  }
+}
+setInterval(() => { if (!$("app").hidden && sw.mode !== "running") refresh(); }, 6000);
+
+function renderTeams() {
+  const sel = $("teamSel"), keep = sel.value || data.state.currentTeam || "";
+  const names = data.teams.map(t => t.team);
+  const opts = `<option value="">— Standby (no team) —</option>` + names.map(n => {
+    const t = list.find(x => x.team === n); const c = t ? t.runs.length : 0;
+    return `<option value="${esc(n)}">${esc(n)}  (${c}/${CFG.RUNS_PER_TEAM})</option>`;
+  }).join("");
+  if (sel.dataset.sig !== opts) { sel.innerHTML = opts; sel.dataset.sig = opts; }
+  sel.value = names.includes(keep) ? keep : "";
+
+  const ns = $("nextSel"), nopts = opts.replace("— Standby (no team) —", "— None —");
+  if (ns.dataset.sig !== nopts) { ns.innerHTML = nopts; ns.dataset.sig = nopts; }
+  if (document.activeElement !== ns) ns.value = names.includes(data.state.nextTeam) ? data.state.nextTeam : "";
+  $("promoteBtn").disabled = !ns.value;
+}
+
+function renderMeta() {
+  const n = $("teamSel").value, t = list.find(x => x.team === n);
+  if (!n) { $("teamMeta").innerHTML = `<span>Leaderboard shows <b>standby</b> and rotates team spotlights.</span>`; return; }
+  const over = t && t.runs.length >= CFG.RUNS_PER_TEAM;
+  $("teamMeta").innerHTML = `
+    <span>Runs: <b>${t ? t.runs.length : 0}/${CFG.RUNS_PER_TEAM}</b></span>
+    <span>Best: <b>${fmtTime(t?.best)}</b></span>
+    <span>Rank: <b>${t?.rank ?? "—"}</b></span>
+    ${over ? `<span class="warn">⚠ Team has used all scheduled runs</span>` : ""}
+    ${data.state.currentTeam !== n ? `<span class="warn">Not yet on leaderboard</span>` : ""}`;
+}
+
+function renderStandings() {
+  $("standings").innerHTML = list.slice(0, 10).map(t => `
+    <div class="stand ${t.ec ? "ec" : ""}"><span class="mono">${t.rank ?? "–"}</span><span>${esc(t.team)}</span><span class="mono">${fmtTime(t.best)}</span></div>`).join("")
+    || `<div class="muted">No teams. Add team names to the Teams sheet.</div>`;
+}
+
+let editing = null, confirmDel = null;
+function renderLog() {
+  const sel = $("teamSel").value;
+  const nOf = {}; list.forEach(t => t.runs.forEach(r => nOf[r.id] = r.n));
+  const runs = [...data.runs].sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  $("log").innerHTML = runs.map(r => {
+    if (editing === r.id) return `<tr data-id="${r.id}"><td>${esc(r.team)}</td><td>${nOf[r.id] ?? ""}</td>
+      <td><input id="edTime" value="${r.time != null ? fmtTime(r.time) : ""}" size="8"></td>
+      <td><select id="edStatus">${["OK", "DNF", "DQ"].map(s => `<option ${s === r.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="act"><button class="btn sm primary" data-a="saveEdit">Save</button> <button class="btn sm ghost" data-a="cancel">✕</button></td></tr>`;
+    return `<tr data-id="${r.id}" class="${r.team === sel ? "sel" : ""}"><td>${esc(r.team)}</td><td>${nOf[r.id] ?? ""}</td>
+      <td class="t">${r.status === "OK" ? fmtTime(r.time) : "—"}</td><td class="${r.status !== "OK" ? "dnf" : ""}">${esc(r.status)}</td>
+      <td class="act"><button class="btn sm ghost" data-a="edit">Edit</button> <button class="btn sm ${confirmDel === r.id ? "primary" : "ghost"}" data-a="del">${confirmDel === r.id ? "Confirm" : "Delete"}</button></td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="muted">No runs recorded yet.</td></tr>`;
+}
+$("log").onclick = async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const id = b.closest("tr").dataset.id, a = b.dataset.a;
+  if (a === "edit") { editing = id; confirmDel = null; renderLog(); }
+  if (a === "cancel") { editing = null; renderLog(); }
+  if (a === "del") {
+    if (confirmDel !== id) { confirmDel = id; renderLog(); setTimeout(() => { if (confirmDel === id) { confirmDel = null; renderLog(); } }, 4000); return; }
+    await act("deleteRun", { id }); confirmDel = null; toast("Run deleted"); refresh();
+  }
+  if (a === "saveEdit") {
+    const status = $("edStatus").value, t = parseTime($("edTime").value);
+    if (status === "OK" && !(t > 0)) return toast("⚠ Enter a valid time", true);
+    await act("updateRun", { id, time: t ?? "", status, notes: "" }); editing = null; toast("Run updated"); refresh();
+  }
+};
+
+// ---------------------------------------------------------------- team selection
+$("teamSel").onchange = async () => {
+  if (sw.mode === "running") { toast("⚠ Stop the timer before switching teams", true); $("teamSel").value = data.state.currentTeam; return; }
+  resetLocal();
+  await act("setCurrent", { team: $("teamSel").value });
+  data.state.currentTeam = $("teamSel").value;
+  if (data.state.nextTeam === data.state.currentTeam) { data.state.nextTeam = ""; $("nextSel").value = ""; $("promoteBtn").disabled = true; }
+  renderMeta(); renderLog();
+  toast($("teamSel").value ? `<b>${esc($("teamSel").value)}</b> is up` : "Leaderboard on standby");
+};
+$("nextSel").onchange = async () => {
+  const n = $("nextSel").value;
+  $("promoteBtn").disabled = !n;
+  await act("setNext", { team: n });
+  data.state.nextTeam = n;
+  toast(n ? `<b>${esc(n)}</b> is up next` : "Up next cleared");
+};
+$("promoteBtn").onclick = async () => {
+  const n = $("nextSel").value; if (!n) return;
+  if (sw.mode === "running") return toast("⚠ Stop the timer before switching teams", true);
+  $("teamSel").value = n; $("nextSel").value = ""; $("promoteBtn").disabled = true;
+  await $("teamSel").onchange();   // server clears nextTeam when it becomes current
+  data.state.nextTeam = "";
+};
+$("clearBtn").onclick =() => { if (sw.mode !== "running") { $("teamSel").value = ""; $("teamSel").onchange(); } };
+
+// ---------------------------------------------------------------- stopwatch
+const sw = { mode: "idle", t0: 0, startClient: 0, elapsed: 0 };
+function swRender() {
+  const ms = sw.mode === "running" ? performance.now() - sw.t0 : sw.elapsed;
+  $("swTime").textContent = fmtTime(ms / 1000);
+  $("swTime").className = "sw-time " + sw.mode;
+  requestAnimationFrame(swRender);
+}
+function swUI() {
+  const m = $("swMain");
+  m.className = "btn sw-main " + (sw.mode === "running" ? "stop" : "go");
+  m.innerHTML = (sw.mode === "running" ? "Stop" : "Start") + `<span class="kbd">SPACE</span>`;
+  m.disabled = sw.mode === "stopped";
+  $("swState").textContent = { idle: "Ready", running: "Running — on course", stopped: "Stopped — review & save below" }[sw.mode];
+}
+function start() {
+  if (!$("teamSel").value) return toast("⚠ Select a team first", true);
+  if (data.state.currentTeam !== $("teamSel").value) act("setCurrent", { team: $("teamSel").value });
+  sw.mode = "running"; sw.t0 = performance.now(); sw.startClient = Date.now(); swUI();
+  $("statusIn").value = "OK"; $("timeIn").value = ""; $("notesIn").value = "";
+  act("startTimer", { startClientMs: sw.startClient, clientNowMs: Date.now() }).catch(() => {});
+}
+function stop() {
+  sw.elapsed = performance.now() - sw.t0; sw.mode = "stopped"; swUI();
+  $("timeIn").value = fmtTime(Math.round(sw.elapsed / 10) / 100);
+  act("stopTimer", { elapsedMs: Math.round(sw.elapsed) }).catch(() => {});
+  $("saveBtn").focus();
+}
+function resetLocal() { sw.mode = "idle"; sw.elapsed = 0; swUI(); $("timeIn").value = ""; $("notesIn").value = ""; $("statusIn").value = "OK"; }
+$("swMain").onclick = () => sw.mode === "running" ? stop() : start();
+$("swReset").onclick = () => {
+  if (sw.mode === "running" && !confirmReset()) return;
+  resetLocal(); act("resetTimer").catch(() => {});
+};
+let resetArmed = false;
+function confirmReset() {
+  if (resetArmed) { resetArmed = false; return true; }
+  resetArmed = true; toast("Press Reset again to abandon the running timer"); setTimeout(() => resetArmed = false, 3000); return false;
+}
+$("discardBtn").onclick = () => { resetLocal(); act("resetTimer").catch(() => {}); };
+
+$("saveBtn").onclick = async () => {
+  const team = $("teamSel").value;
+  if (!team) return toast("⚠ Select a team first", true);
+  if (sw.mode === "running") return toast("⚠ Stop the timer first", true);
+  const status = $("statusIn").value, t = parseTime($("timeIn").value);
+  if (status === "OK" && !(t > 0)) return toast("⚠ Enter a valid time, or choose DNF", true);
+  $("saveBtn").disabled = true;
+  try {
+    await act("addRun", { team, time: t ?? "", status, notes: $("notesIn").value });
+    toast(`Saved · <b>${esc(team)}</b> · ${status === "OK" ? fmtTime(t) : status}`);
+    resetLocal(); await refresh();
+  } catch (_) {} finally { $("saveBtn").disabled = false; }
+};
+
+document.addEventListener("keydown", e => {
+  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+  if (e.code === "Space" && !typing && !$("app").hidden) { e.preventDefault(); if (sw.mode !== "stopped") $("swMain").click(); }
+  if (e.key === "Escape" && !$("app").hidden) { document.activeElement.blur(); $("swReset").click(); }
+  if (e.key === "Enter" && sw.mode === "stopped" && document.activeElement.id !== "keyIn" && !document.activeElement.closest(".log")) { e.preventDefault(); $("saveBtn").click(); }
+});
+window.addEventListener("beforeunload", e => { if (sw.mode === "running") { e.preventDefault(); e.returnValue = ""; } });
+
+swUI(); swRender();
+</script>
+</body>
+</html>

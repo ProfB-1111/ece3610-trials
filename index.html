@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECE 3610 · Final Course Trials</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  html, body { height: 100%; }
+  body { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; overflow: hidden; }
+
+  /* ---------- header ---------- */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 28px; border-bottom: 1px solid var(--line); background: rgba(7,9,13,.85); }
+  .top-right { display: flex; align-items: center; gap: 12px; }
+  .clock { font: 500 1.05rem var(--mono); color: var(--muted); min-width: 92px; text-align: right; }
+
+  /* ---------- layout ---------- */
+  .grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 20px; padding: 20px 28px; min-height: 0; }
+  .board { display: flex; flex-direction: column; min-height: 0; padding: 20px 20px 10px; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .sec-head h2 { margin: 0; font: 700 1.25rem var(--display); letter-spacing: .04em; text-transform: uppercase; }
+  .sec-head .note { font-size: .8rem; color: var(--muted); }
+  .sec-head .note b { color: var(--gold); font-weight: 600; }
+
+  /* ---------- podium ---------- */
+  .podium { display: grid; grid-template-columns: 1fr 1.12fr 1fr; gap: 14px; align-items: end; margin-bottom: 18px; }
+  .pod {
+    --c: var(--silver); position: relative; border-radius: 12px; padding: 14px; cursor: pointer;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 13%, transparent), rgba(255,255,255,.015));
+    border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+    display: flex; flex-direction: column; gap: 10px; transition: transform .2s;
+  }
+  .pod:hover { transform: translateY(-2px); }
+  .pod.r1 { --c: var(--gold); padding-top: 22px; box-shadow: 0 0 40px -12px color-mix(in srgb, var(--gold) 60%, transparent); }
+  .pod.r3 { --c: var(--bronze); }
+  .pod.empty { opacity: .45; cursor: default; }
+  .pod .medal { position: absolute; top: -12px; left: 14px; font: 700 .8rem var(--mono); color: #0b0d10; background: var(--c); padding: 3px 9px; border-radius: 6px; }
+  .pod .ec { position: absolute; top: 12px; right: 12px; font: 700 .62rem var(--body); letter-spacing: .14em; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); padding: 3px 7px; border-radius: 5px; }
+  .pod .ph { aspect-ratio: 4/3; border-radius: 9px; font-size: 1.8rem; border: 1px solid rgba(255,255,255,.06); }
+  .pod .nm { font: 700 1.05rem var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod .rb { font-size: .78rem; color: var(--muted); margin-top: -8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod .tm { font: 700 1.6rem var(--mono); color: var(--c); line-height: 1; }
+  .pod.r1 .tm { font-size: 1.95rem; }
+  .pod .sub { display: flex; justify-content: space-between; font: 500 .75rem var(--mono); color: var(--muted); }
+
+  /* ---------- table ---------- */
+  .thead, .row { display: grid; grid-template-columns: 46px 44px minmax(0, 1fr) 110px 96px 96px; gap: 12px; align-items: center; padding: 0 12px; }
+  .thead { font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .thead .r, .row .r { text-align: right; }
+  .rows { overflow-y: auto; min-height: 0; flex: 1; padding-top: 6px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+  .row { height: 54px; border-radius: 10px; cursor: pointer; position: relative; transition: background .2s; }
+  .row:hover { background: rgba(255,255,255,.03); }
+  .row + .row { margin-top: 2px; }
+  .row .rk { font: 700 1rem var(--mono); color: var(--muted); }
+  .row .av { width: 38px; height: 38px; border-radius: 8px; font-size: .8rem; }
+  .row .nm { font: 600 1rem var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .nm small { display: block; font: 400 .74rem var(--body); color: var(--muted); }
+  .row .bt { font: 700 1.05rem var(--mono); }
+  .row .ag { font: 500 .9rem var(--mono); color: var(--muted); }
+  .row.unranked .bt, .row.unranked .rk { color: var(--dim); }
+  .row.running, .pod.running { outline: 1.5px solid var(--live); background: var(--live-soft); }
+  .tag { display: inline-block; vertical-align: middle; margin-left: 10px; font: 700 .58rem var(--body); letter-spacing: .14em; padding: 2px 6px; border-radius: 4px; }
+  .tag.running { color: var(--live); border: 1px solid rgba(61,214,198,.5); animation: pulse 1.4s infinite; }
+  .tag.next { color: var(--warn); border: 1px solid rgba(251,191,36,.5); }
+  .row.next, .pod.next { outline: 1px dashed rgba(251,191,36,.55); }
+  .nextchip { background: rgba(0,0,0,.6); color: var(--warn); border-color: rgba(251,191,36,.45); text-transform: none; letter-spacing: .04em; font-size: .8rem; }
+  .nextchip b { font-family: var(--display); color: var(--text); font-weight: 600; }
+  .dots { display: flex; gap: 5px; }
+  .dots i { width: 22px; height: 6px; border-radius: 3px; background: var(--line-2); }
+  .dots i.ok { background: var(--live); }
+  .dots i.dnf { background: var(--accent); }
+  .empty-msg { color: var(--dim); text-align: center; padding: 30px; font-size: .9rem; }
+
+  /* ---------- stage ---------- */
+  .stage { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 20px; min-height: 0; }
+  .cam { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #05070a; }
+  .cam video, .cam iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
+  .cam-ph { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim);
+    background: repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 12px, transparent 12px 24px); }
+  .cam-ph p { margin: 8px 0 14px; font-size: .85rem; }
+  .cam-ov { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+  .cam-ov .tl { display: flex; gap: 8px; }
+  .cam-bot { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px;
+    background: linear-gradient(0deg, rgba(0,0,0,.78), rgba(0,0,0,0)); margin: 0 -16px -16px; padding: 40px 18px 14px; }
+  .cam-team { font: 700 1.5rem var(--display); text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  .cam-team small { display: block; font: 600 .68rem var(--body); letter-spacing: .16em; color: var(--live); text-transform: uppercase; margin-bottom: 2px; }
+  .timer { font: 700 3.1rem var(--mono); line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 2px 14px rgba(0,0,0,.7); }
+  .timer.running { color: var(--live); }
+  .timer.stopped { color: var(--gold); animation: flash .5s 3; }
+  .timer.idle { color: rgba(255,255,255,.55); }
+  @keyframes flash { 50% { opacity: .3 } }
+  .rec { color: #fff; background: var(--accent); }
+  .rec .dot { animation: pulse 1.2s infinite; }
+  .cam-picker { position: absolute; top: 12px; right: 12px; width: auto; max-width: 240px; font-size: .75rem; padding: 6px 30px 6px 10px; opacity: 0; transition: opacity .2s; pointer-events: auto; background-color: rgba(0,0,0,.65); }
+  .cam:hover .cam-picker { opacity: 1; }
+
+  .card { padding: 20px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .card-head .pill.live { animation: none; }
+  .progress { height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; width: 90px; }
+  .progress i { display: block; height: 100%; background: var(--muted); width: 0; }
+  .card-body { flex: 1; min-height: 0; overflow: hidden; animation: fadeIn .45s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } }
+
+  #howCard .how-intro { font-size: .9rem; margin-bottom: 12px; }
+  #howCard .how-steps { gap: 8px; }
+  #howCard .how-steps li { grid-template-columns: 34px 1fr; }
+  #howCard .how-steps li::before { height: 28px; font-size: .8rem; }
+  #howCard .how-steps b { font-size: .95rem; }
+  #howCard .how-steps p { font-size: .84rem; line-height: 1.35; }
+  #howCard .how-gloss { margin-top: 10px; padding-top: 10px; }
+
+  /* ---------- ticker ---------- */
+  .ticker { display: flex; align-items: center; gap: 16px; padding: 10px 28px; border-top: 1px solid var(--line); background: rgba(7,9,13,.9); overflow: hidden; white-space: nowrap; }
+  .ticker .upper { color: var(--accent); }
+  #ticker { display: flex; gap: 28px; font: 500 .85rem var(--mono); color: var(--muted); overflow: hidden; }
+  #ticker b { color: var(--text); font-family: var(--display); font-weight: 600; margin-right: 8px; }
+  #ticker .dnf { color: var(--accent); }
+
+  /* ---------- modal ---------- */
+  .modal { position: fixed; inset: 0; background: rgba(3,5,8,.72); backdrop-filter: blur(6px); display: none; place-items: center; z-index: 50; padding: 20px; }
+  .modal.open { display: grid; }
+  .modal-box { width: min(860px, 100%); max-height: 90vh; overflow: auto; padding: 26px; position: relative; }
+  .modal-box h2 { margin: 0 0 14px; font: 700 1.4rem var(--display); text-transform: uppercase; letter-spacing: .04em; }
+  .modal-close { position: absolute; top: 16px; right: 16px; }
+
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
+  .banner { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.8); z-index: 95; pointer-events: none;
+    font: 700 3.2rem var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--gold);
+    text-shadow: 0 0 40px rgba(245,196,81,.5), 0 4px 20px rgba(0,0,0,.8); opacity: 0; text-align: center;
+    background: rgba(5,7,10,.88); border: 1px solid rgba(245,196,81,.45); border-radius: 18px; padding: 22px 48px; white-space: nowrap; }
+  .banner small { display: block; font-size: 1.2rem; color: var(--text); letter-spacing: .12em; }
+  .banner.show { animation: bannerIn 3.2s ease forwards; }
+  @keyframes bannerIn { 10% { opacity: 1; transform: translate(-50%,-50%) scale(1) } 80% { opacity: 1; transform: translate(-50%,-50%) scale(1) } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.05) } }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1050px) {
+    body { overflow: auto; display: block; }
+    .grid { grid-template-columns: 1fr; }
+    .stage { grid-template-rows: auto auto; }
+    .rows { max-height: none; overflow: visible; }
+    .top { flex-wrap: wrap; padding: 14px 16px; }
+    .grid { padding: 14px 16px; }
+    .ticker { padding: 10px 16px; }
+  }
+  .pod { min-width: 0; }
+  #ticker { min-width: 0; }
+  @media (max-width: 640px) {
+    html, body { overflow-x: hidden; }
+    .podium .pod.r1 { padding-top: 14px; }
+    .thead, .row { grid-template-columns: 34px 36px minmax(0, 1fr) 80px; }
+    .thead .hide-s, .row .hide-s { display: none; }
+    .row.running::after { display: none; }
+    .podium { gap: 8px; } .pod { padding: 10px; } .pod .tm { font-size: 1.1rem !important; } .pod .ec, .pod .sub { display: none; }
+    .timer { font-size: 2.2rem; } .cam-team { font-size: 1.1rem; }
+    .brand-title { font-size: 1.15rem; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logos" id="logos" hidden></div>
+    <div class="brand-mark" id="course">ECE 3610</div>
+    <div><div class="brand-title" id="title">Final Course Trials</div><div class="brand-sub" id="subtitle"></div></div>
+  </div>
+  <div class="top-right">
+    <span class="pill" id="status"><span class="dot"></span><span>Connecting</span></span>
+    <button class="btn sm ghost" id="howBtn">How it works</button>
+    <a class="btn sm live" id="liveLink" target="_blank" rel="noopener" hidden>● Watch live</a>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="board panel">
+    <div class="sec-head">
+      <h2>Leaderboard</h2>
+      <div class="note">Ranked by best single run · <b>Top <span id="ecN">3</span> earn extra credit</b></div>
+    </div>
+    <div class="podium" id="podium"></div>
+    <div class="thead"><span>#</span><span></span><span>Team</span><span class="hide-s">Runs</span><span class="r">Best</span><span class="r hide-s">Avg</span></div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <section class="stage">
+    <div class="cam panel" id="cam">
+      <div class="cam-ph" id="camPh">
+        <div>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
+          <p id="camMsg">Camera offline</p>
+          <button class="btn sm" id="camBtn" hidden>Enable camera</button>
+        </div>
+      </div>
+      <div class="cam-ov">
+        <div class="tl"><span class="pill rec" id="recPill" hidden><span class="dot"></span>Live</span><span class="pill nextchip" id="nextChip" hidden></span></div>
+        <div class="cam-bot">
+          <div class="cam-team" id="camTeam"><small>Standby</small>Waiting for next team</div>
+          <div class="timer mono idle" id="timer">0:00.00</div>
+        </div>
+      </div>
+      <select class="cam-picker" id="camPicker" hidden></select>
+    </div>
+
+    <div class="card panel">
+      <div class="card-head">
+        <span class="pill" id="cardLabel">Spotlight</span>
+        <div class="progress"><i id="cardProg"></i></div>
+      </div>
+      <div class="card-body" id="cardBody"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="ticker"><span class="upper">Latest runs</span><div id="ticker"><span>No runs yet</span></div></footer>
+
+<div class="modal" id="modal"><div class="modal-box panel"><button class="btn sm ghost modal-close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
+<div class="toast-wrap" id="toasts"></div>
+<div class="banner" id="banner"></div>
+<canvas id="confetti"></canvas>
+
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/how.js"></script>
+<script src="assets/teamcard.js"></script>
+<script>
+const { CFG, DEMO, esc, fmtTime, initials, hue, standings, getData, store } = Trials;
+const $ = id => document.getElementById(id);
+
+Trials.renderLogos($("logos"));
+$("course").textContent = CFG.COURSE;
+$("title").textContent = CFG.TITLE;
+$("subtitle").textContent = CFG.SUBTITLE;
+$("ecN").textContent = CFG.EXTRA_CREDIT_SPOTS;
+document.title = `${CFG.COURSE} · ${CFG.TITLE}`;
+const params = new URLSearchParams(location.search);
+const CAM_MODE = params.get("cam") || CFG.CAMERA_MODE;
+// Stream delay: ?delay=ms overrides config; no delay when showing a local webcam.
+const DELAY = params.has("delay") ? Number(params.get("delay")) || 0
+            : CAM_MODE === "local" || CAM_MODE === "none" ? 0 : Number(CFG.STREAM_DELAY_MS) || 0;
+
+const liveHref = CFG.LIVE_LINK || (CFG.YOUTUBE_ID ? `https://www.youtube.com/watch?v=${encodeURIComponent(CFG.YOUTUBE_ID)}` : "");
+if (liveHref) { $("liveLink").href = liveHref; $("liveLink").hidden = false; if (!CFG.LIVE_LINK) $("liveLink").textContent = "▶ Open on YouTube"; }
+
+let data = null, list = [], sig = "", offset = 0, seen = null, leaderId = null;
+
+// ---------------------------------------------------------------- helpers
+function avatar(t, cls, extra = "") {
+  const h = hue(t.team);
+  const bg = t.photo ? `background-image:url('${esc(t.photo)}')` : `background:linear-gradient(135deg,hsl(${h},45%,30%),hsl(${(h+50)%360},50%,14%))`;
+  return `<div class="avatar ${cls}" style="${bg};${extra}">${t.photo ? "" : esc(initials(t.team))}</div>`;
+}
+const medal = r => ["", "1ST", "2ND", "3RD"][r] || r + "TH";
+const runDots = t => {
+  const n = Math.max(CFG.RUNS_PER_TEAM, t.runs.length);
+  return `<div class="dots">${Array.from({ length: n }, (_, i) => {
+    const r = t.runs[i]; return `<i class="${r ? (r.status === "OK" ? "ok" : "dnf") : ""}"></i>`; }).join("")}</div>`;
+};
+
+
+// ---------------------------------------------------------------- render
+function render() {
+  const cur = (data.state.currentTeam || "").toLowerCase();
+  const nxt = (data.state.nextTeam || "").toLowerCase();
+  const flag = t => { const k = t.team.toLowerCase(); return k === cur ? "running" : k === nxt ? "next" : ""; };
+  const tag = t => { const f = flag(t); return f ? `<span class="tag ${f}">${f === "running" ? "ON COURSE" : "UP NEXT"}</span>` : ""; };
+  const ranked = list.filter(t => t.rank != null);
+
+  // podium (display order 2,1,3)
+  $("podium").innerHTML = [2, 1, 3].map(r => {
+    const t = ranked[r - 1];
+    if (!t) return `<div class="pod r${r} empty"><span class="medal">${medal(r)}</span><div class="avatar ph" style="background:rgba(255,255,255,.03)"></div><div class="nm muted">Open spot</div><div class="tm">—</div></div>`;
+    return `<div class="pod r${r} ${flag(t)}" data-team="${esc(t.team)}">
+      <span class="medal">${medal(r)}</span>${t.ec ? `<span class="ec">EXTRA CREDIT</span>` : ""}
+      ${avatar(t, "ph")}
+      <div class="nm">${esc(t.team)}${tag(t)}</div><div class="rb">${esc(t.robot || " ")}</div>
+      <div class="tm mono">${fmtTime(t.best)}</div>
+      <div class="sub"><span>AVG ${fmtTime(t.avg)}</span><span>${t.runs.length}/${CFG.RUNS_PER_TEAM} RUNS</span></div>
+    </div>`;
+  }).join("");
+
+  // table (rank 4+, then unranked)
+  const rest = list.filter(t => !(t.rank && t.rank <= 3));
+  const before = {};
+  $("rows").querySelectorAll(".row").forEach(el => before[el.dataset.team] = el.getBoundingClientRect().top);
+  $("rows").innerHTML = rest.length ? rest.map(t => `
+    <div class="row ${t.rank == null ? "unranked" : ""} ${flag(t)}" data-team="${esc(t.team)}">
+      <span class="rk">${t.rank ?? "–"}</span>
+      ${avatar(t, "av")}
+      <div class="nm">${esc(t.team)}${tag(t)}<small>${esc(t.robot || (t.runs.length ? "" : "Awaiting first run"))}</small></div>
+      <span class="hide-s">${runDots(t)}</span>
+      <span class="bt r">${fmtTime(t.best)}</span>
+      <span class="ag r hide-s">${fmtTime(t.avg)}</span>
+    </div>`).join("")
+    : (list.length ? "" : `<div class="empty-msg">No teams yet — add team names to the Teams sheet.</div>`);
+  // FLIP animate rank changes
+  $("rows").querySelectorAll(".row").forEach(el => {
+    const b = before[el.dataset.team]; if (b == null) return;
+    const d = b - el.getBoundingClientRect().top;
+    if (Math.abs(d) > 2) el.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 600, easing: "cubic-bezier(.2,.8,.2,1)" });
+  });
+
+  // ticker
+  const latest = [...data.runs].sort((a, b) => String(b.ts).localeCompare(String(a.ts))).slice(0, 8);
+  $("ticker").innerHTML = latest.length ? latest.map(r => {
+    const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
+    const n = t ? t.runs.find(x => x.id === r.id)?.n : "";
+    return `<span><b>${esc(r.team)}</b>Run ${n} · <span class="${r.status !== "OK" ? "dnf" : ""}">${r.status === "OK" ? fmtTime(r.time) : esc(r.status)}</span></span>`;
+  }).join("") : "<span>No runs yet</span>";
+
+  renderStageInfo();
+  renderCard(true);
+}
+
+// ---------------------------------------------------------------- stage / timer
+function curTeam() {
+  const c = (data?.state.currentTeam || "").toLowerCase();
+  return c ? list.find(t => t.team.toLowerCase() === c) || { team: data.state.currentTeam, runs: [] } : null;
+}
+
+function renderStageInfo() {
+  const t = curTeam(), st = data.state;
+  const chip = $("nextChip");
+  chip.hidden = !(st.nextTeam && t);
+  chip.innerHTML = `Up next&nbsp;<b>${esc(st.nextTeam || "")}</b>`;
+  if (!t) {
+    $("camTeam").innerHTML = st.nextTeam ? `<small style="color:var(--warn)">Up next</small>${esc(st.nextTeam)}` : `<small>Standby</small>Waiting for next team`;
+    return;
+  }
+  const next = t.runs.length + 1;   // run in progress (not saved until the admin records it)
+  const label = st.timerState === "running" ? "On course" : st.timerState === "stopped" ? "Finished" : "At the start line";
+  $("camTeam").innerHTML = `<small>${label} · Run ${next} / ${CFG.RUNS_PER_TEAM}</small>${esc(t.team)}`;
+}
+
+function tick() {
+  if (data) {
+    const st = data.state, el = $("timer");
+    let ms = 0, mode = "idle";
+    if (st.timerState === "running") { ms = Date.now() + offset - DELAY - st.timerStartMs; mode = "running"; }
+    else if (st.timerState === "stopped") { ms = st.timerElapsedMs; mode = "stopped"; }
+    const txt = fmtTime(Math.max(0, ms) / 1000);
+    if (el.textContent !== txt) el.textContent = txt;
+    if (!el.classList.contains(mode)) el.className = "timer mono " + mode;
+  }
+  $("clock").textContent = new Date().toLocaleTimeString([], { hour12: false });
+  requestAnimationFrame(tick);
+}
+
+// ---------------------------------------------------------------- spotlight card
+let rot = 0, rotStart = Date.now(), cardKey = "";
+function rotationItems() {
+  const items = [{ kind: "how" }];
+  list.filter(t => TEXT_FIELDS.some(k => t[k]) || t.photo || t.runs.length).forEach(t => items.push({ kind: "team", team: t.team }));
+  return items;
+}
+function renderCard(fromData) {
+  const cur = curTeam();
+  let item, label, cls = "pill";
+  if (cur) { item = { kind: "team", team: cur.team }; label = "Now running"; cls = "pill live"; }
+  else {
+    const items = rotationItems();
+    if (Date.now() - rotStart > CFG.SPOTLIGHT_MS) { rot++; rotStart = Date.now(); }
+    item = items[rot % items.length];
+    label = item.kind === "how" ? "How it works" : "Team spotlight";
+  }
+  const key = label + "|" + (item.team || "how");
+  if (key === cardKey && !fromData) return;
+  const body = $("cardBody");
+  const html = item.kind === "how" ? `<div id="howCard"></div>` : teamCard(list.find(t => t.team === item.team) || cur);
+  if (key !== cardKey) { body.style.animation = "none"; body.offsetHeight; body.style.animation = ""; }
+  body.innerHTML = html;
+  if (item.kind === "team") { body.dataset.team = item.team; body.style.cursor = "pointer"; body.title = "Click to read the full team card"; }
+  else { delete body.dataset.team; body.style.cursor = ""; body.title = ""; }
+  if (item.kind === "how") renderHowItWorks($("howCard"));
+  $("cardLabel").className = cls;
+  $("cardLabel").innerHTML = (cur ? `<span class="dot"></span>` : "") + label;
+  cardKey = key;
+}
+setInterval(() => {
+  const p = curTeam() ? 0 : Math.min(1, (Date.now() - rotStart) / CFG.SPOTLIGHT_MS);
+  $("cardProg").style.width = (p * 100) + "%";
+  if (data && !curTeam()) renderCard(false);
+}, 200);
+
+// ---------------------------------------------------------------- events
+function toast(html, err) {
+  const el = document.createElement("div"); el.className = "toast" + (err ? " err" : ""); el.innerHTML = html;
+  $("toasts").appendChild(el); setTimeout(() => el.remove(), 6000);
+}
+function banner(main, sub) {
+  const b = $("banner"); b.innerHTML = `${esc(main)}<small>${esc(sub)}</small>`;
+  b.classList.remove("show"); b.offsetWidth; b.classList.add("show");
+}
+
+function detectEvents(prevList) {
+  const ids = new Set(data.runs.map(r => r.id));
+  if (seen) {
+    data.runs.filter(r => !seen.has(r.id)).forEach(r => {
+      const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
+      const n = t?.runs.find(x => x.id === r.id)?.n ?? "";
+      if (r.status !== "OK") { toast(`<b>${esc(r.team)}</b> · Run ${n} · <span style="color:var(--accent)">${esc(r.status)}</span>`); return; }
+      const prev = prevList.find(x => x.team === t?.team);
+      toast(`<b>${esc(r.team)}</b> · Run ${n} · <span class="mono">${fmtTime(r.time)}</span>`);
+      if (t && t.best === r.time) {
+        const newLeader = list[0]?.team === t.team && leaderId !== t.team;
+        if (newLeader) { banner("New leader!", `${t.team} · ${fmtTime(r.time)}`); confetti(); }
+        else if (t.ec && !(prev && prev.ec)) { banner("Podium!", `${t.team} moves to #${t.rank}`); confetti(.4); }
+      }
+    });
+  }
+  seen = ids;
+  leaderId = list[0]?.best != null ? list[0].team : null;
+}
+
+// ---------------------------------------------------------------- polling
+// Each snapshot is tagged with the real (server) time of its newest event and
+// shown STREAM_DELAY ms after that, so the page stays in step with the video.
+const queue = [];
+let queuedSig = "";
+function eventTime(d) {
+  let t = Number(d.state.updatedMs) || 0;
+  d.runs.forEach(r => { const x = Date.parse(r.ts); if (x > t) t = x; });
+  return t;
+}
+function apply(d) {
+  const s = JSON.stringify([d.teams, d.runs, d.state]);
+  if (s === sig) return;
+  sig = s; const prevList = list;
+  data = d; list = standings(d);
+  detectEvents(prevList);
+  render();
+}
+function drainQueue() {
+  const shownNow = Date.now() + offset - DELAY;
+  let pick = null;
+  while (queue.length && queue[0].at <= shownNow) pick = queue.shift();
+  if (pick) apply(pick.d);
+}
+setInterval(drainQueue, 50);
+
+async function poll() {
+  try {
+    const d = await getData();
+    offset = d._offset || 0;
+    $("status").className = "pill " + (DEMO ? "demo" : "live");
+    $("status").innerHTML = `<span class="dot"></span><span>${DEMO ? "Demo data" : "Live"}</span>`;
+    const s = JSON.stringify([d.teams, d.runs, d.state]);
+    if (!data) { apply(d); queuedSig = s; }                 // first load: show immediately
+    else if (s !== queuedSig) {
+      queuedSig = s;
+      const last = queue.length ? queue[queue.length - 1].at : 0;
+      queue.push({ d, at: Math.max(eventTime(d), last) });  // keep order
+      drainQueue();
+    }
+  } catch (e) {
+    console.error(e);
+    $("status").className = "pill err";
+    $("status").innerHTML = `<span class="dot"></span><span>Reconnecting</span>`;
+  }
+}
+// Poll faster while a team is on course so the finish lands on time.
+(function loop() {
+  const latest = queue.length ? queue[queue.length - 1].d : data;
+  const busy = latest && latest.state.currentTeam;
+  poll().finally(() => setTimeout(loop, busy ? CFG.POLL_FAST_MS || 1500 : CFG.POLL_MS));
+})();
+// demo mode: react instantly to admin tab in the same browser
+window.addEventListener("storage", () => DEMO && poll());
+tick();
+
+// ---------------------------------------------------------------- modal
+function openModal(html, after) { $("modalBody").innerHTML = html; after && after(); $("modal").classList.add("open"); }
+$("modalClose").onclick = () => $("modal").classList.remove("open");
+$("modal").onclick = e => { if (e.target.id === "modal") $("modal").classList.remove("open"); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").classList.remove("open"); });
+$("howBtn").onclick = () => openModal(`<h2>How it works</h2><div id="howModal"></div>`, () => renderHowItWorks($("howModal")));
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-team]"); if (!el) return;
+  const t = list.find(x => x.team === el.dataset.team); if (t) openModal(teamCard(t, { full: true }));
+});
+
+// ---------------------------------------------------------------- camera
+const video = document.createElement("video");
+video.autoplay = true; video.muted = true; video.playsInline = true;
+let stream = null;
+async function startCam(deviceId) {
+  try {
+    stream?.getTracks().forEach(t => t.stop());
+    const v = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+    if (deviceId) v.deviceId = { exact: deviceId };
+    stream = await navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+    video.srcObject = stream;
+    if (!video.isConnected) $("cam").prepend(video);
+    $("camPh").hidden = true; $("recPill").hidden = false;
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    const active = stream.getVideoTracks()[0]?.getSettings().deviceId;
+    if (devs.length > 1) {
+      $("camPicker").innerHTML = devs.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === active ? "selected" : ""}>${esc(d.label || "Camera " + (i + 1))}</option>`).join("");
+      $("camPicker").hidden = false;
+    }
+    if (active) store.set("ece3610_cam", active);
+  } catch (e) {
+    console.warn("Camera:", e);
+    $("camMsg").textContent = e.name === "NotAllowedError" ? "Camera permission blocked" : "No camera available";
+    $("camBtn").hidden = false;
+  }
+}
+$("camBtn").onclick = () => startCam();
+$("camPicker").onchange = e => startCam(e.target.value);
+
+const embedSrc = CAM_MODE === "youtube" && CFG.YOUTUBE_ID
+  ? `https://www.youtube.com/embed/${encodeURIComponent(CFG.YOUTUBE_ID)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`
+  : CAM_MODE === "embed" ? CFG.EMBED_URL : "";
+
+if (CAM_MODE === "local" && navigator.mediaDevices?.getUserMedia) {
+  startCam(store.get("ece3610_cam"));
+} else if (embedSrc) {
+  const f = document.createElement("iframe");
+  f.src = embedSrc; f.title = "Live stream";
+  f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
+  $("cam").prepend(f); $("camPh").hidden = true; $("recPill").hidden = false;
+} else {
+  $("camMsg").textContent = CAM_MODE === "none" ? "Live timer" : "Live stream starts soon";
+}
+
+// ---------------------------------------------------------------- confetti
+function confetti(scale = 1) {
+  const c = $("confetti"), x = c.getContext("2d");
+  c.width = innerWidth; c.height = innerHeight;
+  const cols = ["#f5c451", "#e5484d", "#3dd6c6", "#ffffff", "#c3ced9"];
+  const P = Array.from({ length: Math.round(220 * scale) }, () => ({
+    x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .4,
+    vx: (Math.random() - .5) * 18, vy: -Math.random() * 16 - 4, r: Math.random() * 6 + 3,
+    a: Math.random() * 6, va: (Math.random() - .5) * .3, c: cols[(Math.random() * cols.length) | 0]
+  }));
+  const t0 = performance.now();
+  (function f(t) {
+    x.clearRect(0, 0, c.width, c.height);
+    P.forEach(p => { p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.a += p.va;
+      x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillStyle = p.c; x.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); x.restore(); });
+    if (t - t0 < 4000) requestAnimationFrame(f); else x.clearRect(0, 0, c.width, c.height);
+  })(t0);
+}
+</script>
+</body>
+</html>

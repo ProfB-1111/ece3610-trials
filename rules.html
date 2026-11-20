@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How It Works · ECE 3610 Trials</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+  .box { padding: 28px; }
+  h1 { margin: 0 0 16px; font: 700 1.8rem var(--display); text-transform: uppercase; letter-spacing: .04em; }
+  .how-steps p { font-size: 1rem; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logos" id="logos" hidden></div>
+    <div class="brand-mark" id="course">ECE 3610</div>
+    <div><div class="brand-title" id="title">Final Course Trials</div><div class="brand-sub" id="subtitle"></div></div>
+  </div>
+  <a class="btn sm" href="index.html">View leaderboard →</a>
+</header>
+<main class="wrap"><section class="box panel"><h1>How it works</h1><div id="how"></div></section></main>
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/how.js"></script>
+<script>
+  const C = TRIALS_CONFIG;
+  Trials.renderLogos(document.getElementById("logos"));
+  document.getElementById("course").textContent = C.COURSE;
+  document.getElementById("title").textContent = C.TITLE;
+  document.getElementById("subtitle").textContent = C.SUBTITLE;
+  renderHowItWorks(document.getElementById("how"));
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Card Submission · ECE 3610 Trials</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; padding: 16px; } }
+  .box { padding: 26px; }
+  .box h1 { margin: 0 0 6px; font: 700 1.55rem var(--display); }
+  .lead { color: var(--muted); margin: 0 0 14px; font-size: .93rem; line-height: 1.55; }
+  .privacy { display: flex; gap: 10px; align-items: flex-start; font-size: .85rem; line-height: 1.45; color: #e9d9a6;
+    background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.3); border-radius: 10px; padding: 10px 12px; margin-bottom: 22px; }
+  .sec { font: 700 .72rem var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin: 26px 0 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .sec:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+  .sec-note { font-size: .83rem; color: var(--muted); margin: -4px 0 14px; }
+  .count { float: right; font: 500 .72rem var(--mono); color: var(--dim); }
+  .help { font-size: .8rem; margin: -10px 0 16px; min-height: 1.1em; }
+  .help.warn { color: var(--warn); } .help.ok { color: var(--live); }
+  .drop { border: 1.5px dashed var(--line-2); border-radius: 12px; padding: 18px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; color: var(--muted); font-size: .9rem; }
+  .drop:hover, .drop.over { border-color: var(--live); background: var(--live-soft); }
+  .drop input { display: none; }
+  .pv-wrap { position: sticky; top: 20px; }
+  .pv-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .pv { padding: 18px; }
+  .pv-note { font-size: .78rem; color: var(--dim); margin-top: 10px; line-height: 1.45; }
+  .done { text-align: center; padding: 30px 10px; }
+  .done h2 { font: 700 1.4rem var(--display); margin: 10px 0 6px; }
+  .done p { color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logos" id="logos" hidden></div>
+    <div class="brand-mark" id="course">ECE 3610</div>
+    <div><div class="brand-title">Team Card Submission</div><div class="brand-sub" id="title"></div></div>
+  </div>
+  <a class="btn sm" href="index.html">View leaderboard →</a>
+</header>
+
+<main class="wrap">
+  <section class="box panel" id="formBox">
+    <h1>Create your team card</h1>
+    <p class="lead">Your team card appears on the live leaderboard during the final trials. Viewers see it when your team is on the course and in the rotation between runs. Submit once per team; submitting again with the same team name updates your card.</p>
+    <div class="privacy"><span>🔒</span><span><b>Team cards are public.</b> Don't include your names or anyone else's — use your team name only, and keep people's faces out of the robot photo.</span></div>
+
+    <div class="sec">Team</div>
+    <label class="field"><span>Team name</span>
+      <input id="team" maxlength="40" list="teamList" autocomplete="off" placeholder="e.g. Circuit Breakers"></label>
+    <datalist id="teamList"></datalist>
+    <div class="help" id="teamHelp"></div>
+    <label class="field"><span>Robot name (optional)</span><input id="robot" maxlength="60" placeholder="e.g. Sparky"></label>
+
+    <div class="sec">Tell viewers about your team</div>
+    <p class="sec-note">Fill in at least one. The more you share, the better your card — a few sentences each is perfect.</p>
+    <div id="textFields"></div>
+
+    <div class="sec">Robot photo</div>
+    <label class="field">
+      <div class="drop" id="drop"><input type="file" id="photo" accept="image/*"><span id="dropTxt"></span></div>
+    </label>
+
+    <div class="sec">Submit</div>
+    <label class="field"><span>Submission code (from your instructor)</span><input id="code" autocomplete="off"></label>
+    <button class="btn primary" id="submit" style="width:100%;padding:14px">Submit team card</button>
+  </section>
+
+  <aside class="pv-wrap">
+    <div class="pv-head"><span class="upper muted">Team card preview</span><span class="upper" style="color:var(--dim)">Live</span></div>
+    <div class="panel pv" id="pv"></div>
+    <p class="pv-note">On the leaderboard, long comments are shortened to a few lines; viewers can click your card to read everything.</p>
+  </aside>
+</main>
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="assets/config.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/teamcard.js"></script>
+<script>
+const { CFG, DEMO, esc, getData, post } = Trials;
+const $ = id => document.getElementById(id);
+const MAX = 400;
+Trials.renderLogos($("logos"));
+$("course").textContent = CFG.COURSE;
+$("title").textContent = CFG.TITLE + (DEMO ? " · DEMO MODE" : "");
+
+let teams = [], photoData = null;
+
+// ---- build the three comment boxes from config
+$("textFields").innerHTML = TEXT_FIELDS.map(k => {
+  const p = CFG.CARD_PROMPTS[k];
+  return `<label class="field"><span>${esc(p.ask)} <span class="count" id="c_${k}">0/${MAX}</span></span>
+    <textarea id="f_${k}" maxlength="${MAX}" rows="3" placeholder="${esc(p.hint)}"></textarea></label>`;
+}).join("");
+TEXT_FIELDS.forEach(k => $("f_" + k).addEventListener("input", () => { counts(); preview(); }));
+function counts() { TEXT_FIELDS.forEach(k => $("c_" + k).textContent = `${$("f_" + k).value.length}/${MAX}`); }
+
+function toast(msg, err) {
+  const el = document.createElement("div"); el.className = "toast" + (err ? " err" : ""); el.innerHTML = msg;
+  $("toasts").appendChild(el); setTimeout(() => el.remove(), 6000);
+}
+
+const norm = s => String(s || "").replace(/\s+/g, " ").trim();
+const match = () => teams.find(t => t.team.toLowerCase() === norm($("team").value).toLowerCase());
+
+async function load() {
+  try {
+    const d = await getData(); teams = d.teams;
+    $("teamList").innerHTML = teams.map(t => `<option value="${esc(t.team)}">`).join("");
+  } catch (e) { toast("⚠ Could not reach the server. You can still fill in the form; try submitting in a moment.", true); }
+  preview();
+}
+
+// ---- team name: free text, with a heads-up if the name already has a card
+$("team").addEventListener("input", () => { teamHelp(); preview(); });
+$("team").addEventListener("change", () => {
+  const t = match();
+  // Load an existing card for editing, but never overwrite what the user has typed.
+  if (t && !$("robot").value && TEXT_FIELDS.every(k => !$("f_" + k).value)) {
+    $("robot").value = t.robot || "";
+    TEXT_FIELDS.forEach(k => $("f_" + k).value = t[k] || "");
+    counts(); preview();
+  }
+});
+function teamHelp() {
+  const name = norm($("team").value), t = match(), h = $("teamHelp");
+  if (!name) { h.className = "help"; h.textContent = ""; return; }
+  if (t) { h.className = "help warn"; h.textContent = `“${t.team}” already has a team card. Submitting will update it — if that isn't your team, choose a different name.`; }
+  else { h.className = "help ok"; h.textContent = "New team — a card will be created when you submit."; }
+}
+
+$("robot").addEventListener("input", preview);
+
+function preview() {
+  const existing = match();
+  const t = { team: norm($("team").value), robot: norm($("robot").value), photo: photoData || existing?.photo || "",
+              runs: [], best: null, avg: null, rank: null };
+  TEXT_FIELDS.forEach(k => t[k] = $("f_" + k).value.trim());
+  $("pv").innerHTML = teamCard(t, { stack: true, full: true, preview: true });
+}
+
+// ---- photo: resize to max 1200px JPEG in the browser
+const DROP_TXT = `Tap to choose a photo or drag one here<br><small class="muted">Robot only — no faces · landscape works best · resized automatically</small>`;
+function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; }
+resetDrop();
+async function handleFile(f) {
+  if (!f || !f.type.startsWith("image/")) return toast("⚠ Please choose an image file", true);
+  try {
+    const url = URL.createObjectURL(f);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const s = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    photoData = c.toDataURL("image/jpeg", .85);
+    URL.revokeObjectURL(url);
+    $("dropTxt").innerHTML = `✓ ${esc(f.name)} <small class="muted">(${c.width}×${c.height}, ${Math.round(photoData.length * .75 / 1024)} KB) · click to change</small>`;
+    preview();
+  } catch (e) { toast("⚠ Could not read that image (try JPG or PNG)", true); }
+}
+$("drop").onclick = e => { if (e.target.id !== "photo") $("photo").click(); };
+$("photo").onchange = e => handleFile(e.target.files[0]);
+$("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
+$("drop").ondragleave = () => $("drop").classList.remove("over");
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); handleFile(e.dataTransfer.files[0]); };
+
+$("submit").onclick = async () => {
+  const team = norm($("team").value);
+  if (team.length < 2) return toast("⚠ Enter your team name", true);
+  const texts = Object.fromEntries(TEXT_FIELDS.map(k => [k, $("f_" + k).value.trim()]));
+  if (!TEXT_FIELDS.some(k => texts[k])) return toast("⚠ Fill in at least one of the comment boxes", true);
+  if (!photoData && !match()?.photo) return toast("⚠ Add a photo of your robot", true);
+  if (!DEMO && !$("code").value.trim()) return toast("⚠ Enter the submission code", true);
+  $("submit").disabled = true; $("submit").textContent = "Uploading…";
+  try {
+    await post("submit", { team, robot: norm($("robot").value), ...texts, photo: photoData || "", code: $("code").value });
+    $("formBox").innerHTML = `<div class="done"><div style="font-size:2.4rem">✓</div><h2>Team card submitted!</h2>
+      <p><b>${esc(team)}</b> will appear on the leaderboard within a few seconds.</p>
+      <p><a href="index.html">View leaderboard</a> · <a href="submit.html">Edit or submit another</a></p></div>`;
+  } catch (e) {
+    toast("⚠ " + esc(e.message), true);
+    $("submit").disabled = false; $("submit").textContent = "Submit team card";
+  }
+};
+
+counts(); load();
+</script>
+</body>
+</html>

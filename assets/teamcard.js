@@ -46,6 +46,7 @@ window.teamCard = function (t, opts = {}) {
     <div class="tc-right">
       <h3>${esc(t.team || "Your team name")}</h3>
       ${t.robot ? `<div class="tc-robot">${esc(t.robot)}</div>` : ""}
+      ${t.members ? `<div class="tc-members">${esc(t.members)}</div>` : ""}
       <div class="tc-qa">${qa || `<p class="muted" style="margin:0">No comments submitted yet.</p>`}</div>
     </div>
   </div>`;

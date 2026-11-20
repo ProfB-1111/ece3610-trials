@@ -56,6 +56,10 @@ window.TRIALS_CONFIG = {
                    label: "Challenge overcome" }
   },
 
+  // Consent statement each person listed by name on a team card agrees to.
+  NAME_CONSENT_STATEMENT:
+    "I agree that my name may be displayed publicly on my team's card on the ECE 3610 Final Course Trials website and live stream.",
+
   // Consent statement each person in a team photo agrees to (submission page).
   // Consent records are stored privately in the "Consents" sheet, never published.
   PHOTO_CONSENT_STATEMENT:

@@ -7,7 +7,7 @@
  * then Deploy > New deployment > Web app (Execute as: Me, Access: Anyone).
  *
  * Sheets used (created by setup()):
- *   Teams : Team | Robot | Comment | Interesting | Learned | PhotoURL | PhotoFileId | Updated
+ *   Teams : Team | Robot | Members | Comment | Interesting | Learned | PhotoURL | PhotoFileId | Updated
  *           (columns are found by header name, so order doesn't matter;
  *            teams are added automatically when they submit)
  *   Runs  : ID | Timestamp | Team | TimeSec | Status | Notes
@@ -22,14 +22,15 @@
 const PHOTO_FOLDER_NAME = 'ECE3610 Trials Robot Photos';
 // ---------------------------------------------------------------------------
 
-const TEAM_HEADERS  = ['Team', 'Robot', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated',
+const TEAM_HEADERS  = ['Team', 'Robot', 'Members', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated',
                        'FacesInPhoto', 'PhotoCheckedAt'];          // last two are private (never published)
 // Private record of photo consent — this sheet is never published.
-const CONSENT_HEADERS = ['Timestamp', 'Team', 'PhotoFileId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
+const CONSENT_HEADERS = ['Timestamp', 'Team', 'Type', 'PhotoFileId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
 const RUN_HEADERS   = ['ID', 'Timestamp', 'Team', 'TimeSec', 'Status', 'Notes'];
 const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, updatedMs: 0 };
 const MAX_TEXT = 400;       // per comment field
 const MAX_TEAM_NAME = 40;
+const MAX_MEMBERS = 8;
 const CACHE_KEY = 'trials_data_v1';
 
 /** Run once from the editor to create sheets + photo folder. */
@@ -112,7 +113,7 @@ function readAll_() {
   const teams = rows_(tsh)
     .filter(r => get(r, 'Team').trim() !== '')
     .map(r => ({
-      team: get(r, 'Team').trim(), robot: get(r, 'Robot'),
+      team: get(r, 'Team').trim(), robot: get(r, 'Robot'), members: get(r, 'Members'),
       comment: get(r, 'Comment'), interesting: get(r, 'Interesting'), learned: get(r, 'Learned'),
       photo: get(r, 'PhotoURL'), updated: get(r, 'Updated')
     }));
@@ -142,6 +143,12 @@ function submitTeam_(b) {
   const set = (name, v) => { vals[H[name]] = v; };
 
   let photoUrl = vals[H['PhotoURL']], photoId = vals[H['PhotoFileId']];
+  // Member names (optional, public): every name not already on the card must be confirmed by that person.
+  const memberName = n => String(n || '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const members = (Array.isArray(b.members) ? b.members : []).map(memberName).filter(Boolean);
+  if (members.length > MAX_MEMBERS) throw new Error('At most ' + MAX_MEMBERS + ' team member names.');
+  const nameConsents = Array.isArray(b.nameConsents) ? b.nameConsents : [];
+
   // Photo check: required for every new photo. Faces => every person shown must confirm.
   let consents = [];
   if (b.photo) {
@@ -167,8 +174,17 @@ function submitTeam_(b) {
     photoUrl = 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w1200';
   }
 
+  // Names already on this team's card were confirmed before; only new ones need confirmation now.
+  const prev = String(vals[H['Members']] || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const newNames = members.filter(n => prev.indexOf(n.toLowerCase()) < 0);
+  newNames.forEach(n => {
+    const c = nameConsents.find(x => memberName(x.name).toLowerCase() === n.toLowerCase());
+    if (!c || c.confirmed !== true) throw new Error(n + ' has not confirmed their name may be shown.');
+  });
+
   if (isNew) set('Team', team);                  // keep original spelling on resubmit
   set('Robot', clip_(b.robot, 60));
+  set('Members', members.join(', '));
   set('Comment', clip_(b.comment, MAX_TEXT));
   set('Interesting', clip_(b.interesting, MAX_TEXT));
   set('Learned', clip_(b.learned, MAX_TEXT));
@@ -181,19 +197,16 @@ function submitTeam_(b) {
   }
   sh.getRange(row, 1, 1, ncol).setValues([vals]);
 
-  if (consents.length) {
-    const ss = sh.getParent();
-    const csh = ensureSheet_(ss, 'Consents', CONSENT_HEADERS);
+  if (consents.length || newNames.length) {
+    const csh = ensureSheet_(sh.getParent(), 'Consents', CONSENT_HEADERS);
     const ch = headerMap_(csh), cn = csh.getLastColumn(), now = new Date().toISOString();
-    const statement = clip_(b.statement, 500);
-    const rowsOut = consents.map((p, i) => {
-      const r = new Array(cn).fill('');
-      const put = (k, v) => { if (ch[k] != null) r[ch[k]] = v; };
-      put('Timestamp', now); put('Team', team); put('PhotoFileId', photoId); put('Person', i + 1);
-      put('MarkX', isFinite(p.x) ? Number(p.x) : ''); put('MarkY', isFinite(p.y) ? Number(p.y) : '');
-      put('Name', clip_(p.name, 80)); put('Confirmed', 'Yes'); put('Statement', statement);
-      return r;
-    });
+    const row_ = fields => { const r = new Array(cn).fill(''); Object.keys(fields).forEach(k => { if (ch[k] != null) r[ch[k]] = fields[k]; }); return r; };
+    const rowsOut = [];
+    newNames.forEach((n, i) => rowsOut.push(row_({ Timestamp: now, Team: team, Type: 'Name', Person: i + 1, Name: n,
+      Confirmed: 'Yes', Statement: clip_(b.nameStatement, 500) })));
+    consents.forEach((p, i) => rowsOut.push(row_({ Timestamp: now, Team: team, Type: 'Photo', PhotoFileId: photoId, Person: i + 1,
+      MarkX: isFinite(p.x) ? Number(p.x) : '', MarkY: isFinite(p.y) ? Number(p.y) : '',
+      Name: clip_(p.name, 80), Confirmed: 'Yes', Statement: clip_(b.statement, 500) })));
     csh.getRange(csh.getLastRow() + 1, 1, rowsOut.length, cn).setValues(rowsOut);
   }
   return { ok: true, photo: photoUrl, created: isNew };

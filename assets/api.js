@@ -2,7 +2,7 @@
 (function () {
   const CFG = window.TRIALS_CONFIG;
   const DEMO = !CFG.API_URL;
-  const DEMO_KEY = "ece3610_trials_demo_v2";
+  const DEMO_KEY = "ece3610_trials_demo_v3";
 
   // ------------------------------------------------------------ utilities
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
@@ -43,7 +43,7 @@
     const sortedRuns = [...data.runs].sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
     sortedRuns.forEach(r => {
       const k = String(r.team).toLowerCase();
-      if (!byTeam[k]) byTeam[k] = { team: r.team, robot: "", comment: "", interesting: "", learned: "", photo: "", runs: [] };
+      if (!byTeam[k]) byTeam[k] = { team: r.team, robot: "", members: "", comment: "", interesting: "", learned: "", photo: "", runs: [] };
       byTeam[k].runs.push({ ...r, n: byTeam[k].runs.length + 1 });
     });
     const list = Object.values(byTeam).map(t => {
@@ -112,6 +112,7 @@
     const teams = names.map((n, i) => ({
       team: n,
       robot: ["Sparky", "Bolt", "Rover-2", "Zippy", "Ferrite", "Viper", "Tick", "Gizmo"][i],
+      members: ["Sample Student A, Sample Student B, Sample Student C", "", "", "Sample Student D, Sample Student E", "", "", "", ""][i],
       comment: comments[i], interesting: interesting[i] || "", learned: learned[i] || "",
       photo: placeholderPhoto(n), updated: ""
     }));
@@ -169,6 +170,14 @@
         if (name.length < 2 || name.length > 40) throw new Error("Team name must be 2–40 characters.");
         let t = d.teams.find(x => x.team.toLowerCase() === name.toLowerCase());
         if (!t) { t = { team: name, photo: "" }; d.teams.push(t); }
+        const mname = n => String(n || "").replace(/[,;]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+        const members = (body.members || []).map(mname).filter(Boolean);
+        const prev = String(t.members || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+        members.filter(n => !prev.includes(n.toLowerCase())).forEach(n => {
+          const c = (body.nameConsents || []).find(x => mname(x.name).toLowerCase() === n.toLowerCase());
+          if (!c || c.confirmed !== true) throw new Error(n + " has not confirmed their name may be shown.");
+        });
+        t.members = members.join(", ");
         Object.assign(t, { robot: body.robot || "", comment: body.comment || "", interesting: body.interesting || "",
           learned: body.learned || "", updated: new Date().toISOString() });
         if (body.photo) {

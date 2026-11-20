@@ -6,7 +6,7 @@ Static site for GitHub Pages + a Google Sheet backend (via Apps Script).
 |---|---|---|
 | `index.html` | Viewers | Leaderboard, podium, YouTube live stream, timer, spotlight, How It Works |
 | `admin.html` | Instructor | Team on course, up next, stopwatch, record/edit/delete runs |
-| `submit.html` | Students | Team card: team name (typed), robot name, robot photo, three comment prompts. Photo check + consent for photos with faces. |
+| `submit.html` | Students | Team card: team name (typed), robot name, robot photo, three comment prompts. Optional member names and photos with faces, each confirmed by the people involved. |
 | `rules.html` | Anyone | Standalone How It Works page |
 
 Everything you'd normally change is in **`assets/config.js`**.
@@ -80,8 +80,9 @@ Latency differs a little between viewers (YouTube says most see under 5 s), so p
 Keys: `Space` start/stop · `Enter` save · `Esc` reset (press twice while running).
 
 ## Notes
-- **Photos with faces:** after **Submit**, every new photo goes through a *photo check*. If the team says it shows faces, they tap each face to number it, and each person shown enters their name and confirms the consent statement (`PHOTO_CONSENT_STATEMENT` in `config.js`). The card can't be submitted until everyone marked has confirmed. Names, marker positions, the statement and a timestamp are saved in the private **Consents** sheet; the Teams sheet also records `FacesInPhoto` (No / Yes (n)). To remove a photo, clear its `PhotoURL` cell in the Teams sheet.
-- **Anonymity:** the site never publishes student names. Only the Team, Robot, Comment, Interesting, Learned and PhotoURL columns are published; anything else in the sheet stays private. If your sheet was created with an older version that had a `Members` column, delete that column.
+- **Photos with faces:** after **Submit**, every new photo goes through a *photo check*. If the team says it shows faces, they tap each face to number it, and each person shown enters their name and confirms the consent statement (`PHOTO_CONSENT_STATEMENT` in `config.js`). The card can't be submitted until everyone marked has confirmed. Names, marker positions, the statement and a timestamp are saved in the private **Consents** sheet (Type = Photo); the Teams sheet also records `FacesInPhoto` (No / Yes (n)). To remove a photo, clear its `PhotoURL` cell in the Teams sheet.
+- **Member names (optional):** teams may list member names on their card. On submit, each newly listed person confirms `NAME_CONSENT_STATEMENT` (config.js) for themselves; the backend rejects any new name without a confirmation. Names already on the card aren't asked again. Each confirmation is saved in the **Consents** sheet (Type = Name). To remove a name, edit the `Members` cell in the Teams sheet.
+- **Anonymity:** names appear only when listed in the optional Members field and confirmed. Photo-consent names stay private. Only the Team, Robot, Comment, Interesting, Learned and PhotoURL columns are published; anything else in the sheet stays private. If your sheet was created with an older version that had a `Members` column, delete that column.
 - **Team card prompts** (questions, example text, card headings) are in `CARD_PROMPTS` in `config.js`.
 - **Ranking:** best single completed run. Ties are broken by average time. The top `EXTRA_CREDIT_SPOTS` teams get the extra-credit badge.
 - **Official time** comes from the admin stopwatch, which is precise to the millisecond on your machine. The leaderboard replays each start and stop at the real event time plus `STREAM_DELAY_MS`. The final time shown is always the recorded one.

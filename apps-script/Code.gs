@@ -252,7 +252,7 @@ function addRun_(b) {
   const time = status === 'OK' ? Number(b.time) : (b.time ? Number(b.time) : '');
   if (status === 'OK' && !(time > 0)) throw new Error('Time must be a positive number of seconds.');
   const id = Utilities.getUuid();
-  sh.appendRow([id, new Date().toISOString(), String(b.team), time, status, clip_(b.notes, 200)]);
+  sh.appendRow([id, new Date(), String(b.team), time, status, clip_(b.notes, 200)]);   // real date, no time-zone guessing
   writeState_({ timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0 });
   return { ok: true, id: id };
 }

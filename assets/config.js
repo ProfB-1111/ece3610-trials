@@ -56,6 +56,10 @@ window.TRIALS_CONFIG = {
                    label: "Challenge overcome" }
   },
 
+  // Shown at the bottom of the leaderboard page. Set to "" to hide.
+  CONSENT_DISCLAIMER:
+    "All names and photos of people shown on this page are displayed with the consent of the individuals involved.",
+
   // Consent statement each person listed by name on a team card agrees to.
   NAME_CONSENT_STATEMENT:
     "I agree that my name may be displayed publicly on my team's card on the ECE 3610 Final Course Trials website and live stream.",

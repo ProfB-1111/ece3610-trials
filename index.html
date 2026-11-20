@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="assets/common.css">
 <style>
   html, body { height: 100%; }
-  body { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; overflow: hidden; }
+  body { display: grid; grid-template-rows: auto 1fr auto auto; min-height: 100vh; overflow: hidden; }
 
   /* ---------- header ---------- */
   .top { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 28px; border-bottom: 1px solid var(--line); background: rgba(7,9,13,.85); }
@@ -111,6 +111,7 @@
   #howCard .how-gloss { margin-top: 10px; padding-top: 10px; }
 
   /* ---------- ticker ---------- */
+  .disclaimer { padding: 6px 28px 8px; font-size: .72rem; color: var(--dim); background: rgba(7,9,13,.9); text-align: center; }
   .ticker { display: flex; align-items: center; gap: 16px; padding: 10px 28px; border-top: 1px solid var(--line); background: rgba(7,9,13,.9); overflow: hidden; white-space: nowrap; }
   .ticker .upper { color: var(--accent); }
   #ticker { display: flex; gap: 28px; font: 500 .85rem var(--mono); color: var(--muted); overflow: hidden; }
@@ -142,6 +143,7 @@
     .top { flex-wrap: wrap; padding: 14px 16px; }
     .grid { padding: 14px 16px; }
     .ticker { padding: 10px 16px; }
+    .disclaimer { padding: 8px 16px 12px; white-space: normal; }
   }
   .pod { min-width: 0; }
   #ticker { min-width: 0; }
@@ -213,6 +215,7 @@
 </main>
 
 <footer class="ticker"><span class="upper">Latest runs</span><div id="ticker"><span>No runs yet</span></div></footer>
+<p class="disclaimer" id="disclaimer"></p>
 
 <div class="modal" id="modal"><div class="modal-box panel"><button class="btn sm ghost modal-close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
 <div class="toast-wrap" id="toasts"></div>
@@ -232,6 +235,8 @@ $("course").textContent = CFG.COURSE;
 $("title").textContent = CFG.TITLE;
 $("subtitle").textContent = CFG.SUBTITLE;
 $("ecN").textContent = CFG.EXTRA_CREDIT_SPOTS;
+$("disclaimer").textContent = CFG.CONSENT_DISCLAIMER || "";
+$("disclaimer").hidden = !CFG.CONSENT_DISCLAIMER;
 document.title = `${CFG.COURSE} · ${CFG.TITLE}`;
 const params = new URLSearchParams(location.search);
 const CAM_MODE = params.get("cam") || CFG.CAMERA_MODE;

@@ -171,7 +171,17 @@
         if (!t) { t = { team: name, photo: "" }; d.teams.push(t); }
         Object.assign(t, { robot: body.robot || "", comment: body.comment || "", interesting: body.interesting || "",
           learned: body.learned || "", updated: new Date().toISOString() });
-        if (body.photo) t.photo = body.photo;
+        if (body.photo) {
+          if (body.faces !== true && body.faces !== false) throw new Error("Please complete the photo check.");
+          if (body.faces && !(body.consents || []).length) throw new Error("Mark each person in the photo and have them confirm.");
+          (body.consents || []).forEach((p, i) => {
+            if (!String(p.name || "").trim()) throw new Error(`Person ${i + 1}: name is required.`);
+            if (p.confirmed !== true) throw new Error(`Person ${i + 1} has not confirmed.`);
+          });
+          t.photo = body.photo;
+          d.consents = (d.consents || []).concat((body.consents || []).map((p, i) =>
+            ({ ts: new Date().toISOString(), team: t.team, person: i + 1, name: p.name })));
+        }
         break;
       }
       default: throw new Error("Unknown action");

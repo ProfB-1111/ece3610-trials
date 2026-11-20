@@ -56,6 +56,11 @@ window.TRIALS_CONFIG = {
                    label: "Challenge overcome" }
   },
 
+  // Consent statement each person in a team photo agrees to (submission page).
+  // Consent records are stored privately in the "Consents" sheet, never published.
+  PHOTO_CONSENT_STATEMENT:
+    "I am shown in this photo, and I agree that it may be displayed publicly on the ECE 3610 Final Course Trials website and live stream.",
+
   // "How It Works" — shown via button, in the idle rotation, and on rules.html
   HOW_IT_WORKS: {
     intro: "Student teams designed, built and programmed autonomous robots to complete the course as fast as possible — no remote control allowed.",

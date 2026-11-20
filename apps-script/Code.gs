@@ -22,7 +22,10 @@
 const PHOTO_FOLDER_NAME = 'ECE3610 Trials Robot Photos';
 // ---------------------------------------------------------------------------
 
-const TEAM_HEADERS  = ['Team', 'Robot', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated'];
+const TEAM_HEADERS  = ['Team', 'Robot', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated',
+                       'FacesInPhoto', 'PhotoCheckedAt'];          // last two are private (never published)
+// Private record of photo consent — this sheet is never published.
+const CONSENT_HEADERS = ['Timestamp', 'Team', 'PhotoFileId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
 const RUN_HEADERS   = ['ID', 'Timestamp', 'Team', 'TimeSec', 'Status', 'Notes'];
 const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, updatedMs: 0 };
 const MAX_TEXT = 400;       // per comment field
@@ -34,6 +37,7 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSheet_(ss, 'Teams', TEAM_HEADERS);
   ensureSheet_(ss, 'Runs', RUN_HEADERS);
+  ensureSheet_(ss, 'Consents', CONSENT_HEADERS);
   const st = ensureSheet_(ss, 'State', ['Key', 'Value']);
   if (st.getLastRow() < 2) {
     Object.keys(STATE_DEFAULT).forEach(k => st.appendRow([k, STATE_DEFAULT[k]]));
@@ -138,6 +142,20 @@ function submitTeam_(b) {
   const set = (name, v) => { vals[H[name]] = v; };
 
   let photoUrl = vals[H['PhotoURL']], photoId = vals[H['PhotoFileId']];
+  // Photo check: required for every new photo. Faces => every person shown must confirm.
+  let consents = [];
+  if (b.photo) {
+    if (b.faces !== true && b.faces !== false) throw new Error('Please complete the photo check.');
+    if (b.faces) {
+      consents = Array.isArray(b.consents) ? b.consents : [];
+      if (!consents.length) throw new Error('Mark each person in the photo and have them confirm.');
+      consents.forEach((p, i) => {
+        if (!clip_(p.name, 80)) throw new Error('Person ' + (i + 1) + ': name is required.');
+        if (p.confirmed !== true) throw new Error('Person ' + (i + 1) + ' has not confirmed.');
+      });
+    }
+  }
+
   if (b.photo) {
     const m = String(b.photo).match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
     if (!m) throw new Error('Photo must be an image.');
@@ -157,7 +175,27 @@ function submitTeam_(b) {
   set('PhotoURL', photoUrl);
   set('PhotoFileId', photoId);
   set('Updated', new Date().toISOString());
+  if (b.photo) {
+    set('FacesInPhoto', b.faces ? 'Yes (' + consents.length + ')' : 'No');
+    set('PhotoCheckedAt', new Date().toISOString());
+  }
   sh.getRange(row, 1, 1, ncol).setValues([vals]);
+
+  if (consents.length) {
+    const ss = sh.getParent();
+    const csh = ensureSheet_(ss, 'Consents', CONSENT_HEADERS);
+    const ch = headerMap_(csh), cn = csh.getLastColumn(), now = new Date().toISOString();
+    const statement = clip_(b.statement, 500);
+    const rowsOut = consents.map((p, i) => {
+      const r = new Array(cn).fill('');
+      const put = (k, v) => { if (ch[k] != null) r[ch[k]] = v; };
+      put('Timestamp', now); put('Team', team); put('PhotoFileId', photoId); put('Person', i + 1);
+      put('MarkX', isFinite(p.x) ? Number(p.x) : ''); put('MarkY', isFinite(p.y) ? Number(p.y) : '');
+      put('Name', clip_(p.name, 80)); put('Confirmed', 'Yes'); put('Statement', statement);
+      return r;
+    });
+    csh.getRange(csh.getLastRow() + 1, 1, rowsOut.length, cn).setValues(rowsOut);
+  }
   return { ok: true, photo: photoUrl, created: isNew };
 }
 

@@ -27,6 +27,39 @@
   .pv-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
   .pv { padding: 18px; }
   .pv-note { font-size: .78rem; color: var(--dim); margin-top: 10px; line-height: 1.45; }
+  /* photo check / consent flow */
+  .flow { position: fixed; inset: 0; z-index: 60; background: rgba(3,5,8,.78); backdrop-filter: blur(6px); overflow-y: auto; padding: 24px 16px; }
+  .flow-box { max-width: 760px; margin: 0 auto; padding: 26px; }
+  .steps { display: flex; gap: 8px; margin-bottom: 18px; }
+  .steps span { flex: 1; font: 600 .7rem var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--dim);
+    border-top: 3px solid var(--line-2); padding-top: 8px; }
+  .steps span.on { color: var(--text); border-top-color: var(--accent); }
+  .steps span.past { color: var(--muted); border-top-color: var(--live); }
+  .flow-btns .btn { white-space: nowrap; }
+  @media (max-width: 640px) { .flow-box { padding: 18px; } .flow-btns { flex-direction: column-reverse; } .flow-btns .btn { width: 100%; white-space: normal; } .person { padding: 12px; gap: 10px; } }
+  .flow h2 { margin: 0 0 6px; font: 700 1.4rem var(--display); }
+  .flow p.sub { color: var(--muted); margin: 0 0 16px; font-size: .92rem; line-height: 1.5; }
+  .chk-img { width: 100%; max-height: 52vh; object-fit: contain; background: #05070a; border-radius: 12px; border: 1px solid var(--line); display: block; }
+  .choice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--line-2); border-radius: 12px; margin-top: 12px; cursor: pointer; line-height: 1.45; font-size: .93rem; }
+  .choice:hover { border-color: #3a4a5e; }
+  .choice:has(input:checked) { border-color: var(--live); background: var(--live-soft); }
+  .choice input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--live); }
+  .flow-btns { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+  .tagger { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); cursor: crosshair; background: #05070a; }
+  .tagger img { width: 100%; display: block; user-select: none; -webkit-user-drag: none; }
+  .mark { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; display: grid; place-items: center;
+    font: 700 .95rem var(--mono); color: #fff; background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.6); pointer-events: none; }
+  .mark.ok { background: #16a34a; }
+  .people { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .person { border: 1px solid var(--line-2); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: start; }
+  .person.ok { border-color: rgba(74,222,128,.5); }
+  .person .num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 700 .9rem var(--mono); background: var(--accent); color: #fff; }
+  .person.ok .num { background: #16a34a; }
+  .person input[type=text] { margin-bottom: 10px; }
+  .person label.agree { display: flex; gap: 10px; align-items: flex-start; font-size: .86rem; line-height: 1.45; color: #d4dce5; cursor: pointer; }
+  .person label.agree input { width: 18px; height: 18px; flex: none; margin-top: 1px; accent-color: #16a34a; }
+  .person .priv { font-size: .74rem; color: var(--dim); margin-top: 6px; }
+  .empty-people { color: var(--dim); font-size: .88rem; text-align: center; padding: 14px; border: 1px dashed var(--line-2); border-radius: 12px; }
   .done { text-align: center; padding: 30px 10px; }
   .done h2 { font: 700 1.4rem var(--display); margin: 10px 0 6px; }
   .done p { color: var(--muted); }
@@ -46,7 +79,8 @@
   <section class="box panel" id="formBox">
     <h1>Create your team card</h1>
     <p class="lead">Your team card appears on the live leaderboard during the final trials. Viewers see it when your team is on the course and in the rotation between runs. Submit once per team; submitting again with the same team name updates your card.</p>
-    <div class="privacy"><span>🔒</span><span><b>Team cards are public.</b> Don't include your names or anyone else's — use your team name only, and keep people's faces out of the robot photo.</span></div>
+    <div class="privacy"><span>🔒</span><span><b>Team cards are public.</b> Use your team name only — please don't put anyone's name in the card text.
+      Photos that show people's faces are welcome, but <b>everyone in the photo must consent</b>: when you submit, you'll check the photo, and each person shown confirms for themselves.</span></div>
 
     <div class="sec">Team</div>
     <label class="field"><span>Team name</span>
@@ -75,6 +109,38 @@
     <p class="pv-note">On the leaderboard, long comments are shortened to a few lines; viewers can click your card to read everything.</p>
   </aside>
 </main>
+<!-- photo check + consent (shown after "Submit" when a new photo is attached) -->
+<div class="flow" id="flow" hidden>
+  <div class="flow-box panel">
+    <div class="steps"><span id="stp1">1 · Photo check</span><span id="stp2">2 · Photo consent</span></div>
+
+    <section id="step1">
+      <h2>Photo check</h2>
+      <p class="sub">This photo will be shown publicly on your team card. Please check it before your card goes live.</p>
+      <img class="chk-img" id="chkImg" alt="Your robot photo">
+      <label class="choice"><input type="radio" name="faces" value="no">
+        <span><b>No faces.</b> I confirm this photo does not show any person's face.</span></label>
+      <label class="choice"><input type="radio" name="faces" value="yes">
+        <span><b>This photo shows people's faces.</b> On the next page, everyone shown must be identified and confirm for themselves.</span></label>
+      <div class="flow-btns">
+        <button class="btn ghost" data-close>← Back to form</button>
+        <button class="btn primary" id="step1Next" disabled>Continue</button>
+      </div>
+    </section>
+
+    <section id="step2" hidden>
+      <h2>Photo consent</h2>
+      <p class="sub"><b>Tap each person's face</b> in the photo to number them. Then <b>each person shown</b> enters their name and checks their own box — pass the device around.
+        Names are kept privately by your instructor as a consent record and are <b>never shown publicly</b>.</p>
+      <div class="tagger" id="tagger"><img id="tagImg" alt="Tap faces to number them" draggable="false"><div id="marks"></div></div>
+      <div class="people" id="people"></div>
+      <div class="flow-btns">
+        <button class="btn ghost" id="step2Back">← Back</button>
+        <button class="btn primary" id="step2Submit" disabled>Submit team card</button>
+      </div>
+    </section>
+  </div>
+</div>
 <div class="toast-wrap" id="toasts"></div>
 
 <script src="assets/config.js"></script>
@@ -144,7 +210,7 @@ function preview() {
 }
 
 // ---- photo: resize to max 1200px JPEG in the browser
-const DROP_TXT = `Tap to choose a photo or drag one here<br><small class="muted">Robot only — no faces · landscape works best · resized automatically</small>`;
+const DROP_TXT = `Tap to choose a photo or drag one here<br><small class="muted">Photos with people's faces need everyone's consent · landscape works best · resized automatically</small>`;
 function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; }
 resetDrop();
 async function handleFile(f) {
@@ -168,23 +234,123 @@ $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"
 $("drop").ondragleave = () => $("drop").classList.remove("over");
 $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); handleFile(e.dataTransfer.files[0]); };
 
-$("submit").onclick = async () => {
+// ---- submit: validate form -> (new photo) photo check -> (faces) consent -> upload
+function formData() {
   const team = norm($("team").value);
   if (team.length < 2) return toast("⚠ Enter your team name", true);
   const texts = Object.fromEntries(TEXT_FIELDS.map(k => [k, $("f_" + k).value.trim()]));
   if (!TEXT_FIELDS.some(k => texts[k])) return toast("⚠ Fill in at least one of the comment boxes", true);
   if (!photoData && !match()?.photo) return toast("⚠ Add a photo of your robot", true);
   if (!DEMO && !$("code").value.trim()) return toast("⚠ Enter the submission code", true);
-  $("submit").disabled = true; $("submit").textContent = "Uploading…";
+  return { team, robot: norm($("robot").value), ...texts, photo: photoData || "", code: $("code").value };
+}
+
+$("submit").onclick = () => {
+  const f = formData(); if (!f) return;
+  if (f.photo) openFlow();            // a new photo always goes through the photo check
+  else upload(f, {});                  // keeping the existing (already checked) photo
+};
+
+async function upload(f, extra, btn = $("submit")) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Uploading…";
   try {
-    await post("submit", { team, robot: norm($("robot").value), ...texts, photo: photoData || "", code: $("code").value });
+    await post("submit", { ...f, ...extra });
+    closeFlow();
     $("formBox").innerHTML = `<div class="done"><div style="font-size:2.4rem">✓</div><h2>Team card submitted!</h2>
-      <p><b>${esc(team)}</b> will appear on the leaderboard within a few seconds.</p>
+      <p><b>${esc(f.team)}</b> will appear on the leaderboard within a few seconds.</p>
       <p><a href="index.html">View leaderboard</a> · <a href="submit.html">Edit or submit another</a></p></div>`;
+    window.scrollTo(0, 0);
   } catch (e) {
     toast("⚠ " + esc(e.message), true);
-    $("submit").disabled = false; $("submit").textContent = "Submit team card";
+    btn.disabled = false; btn.textContent = label;
   }
+}
+
+// ---- flow: step 1 (photo check)
+let people = [];   // { x, y, name, confirmed }  (x, y in % of the photo)
+function openFlow() {
+  $("chkImg").src = photoData; $("tagImg").src = photoData;
+  document.querySelectorAll('input[name=faces]').forEach(r => r.checked = false);
+  people = []; renderPeople();
+  showStep(1); $("flow").hidden = false; document.body.style.overflow = "hidden";
+}
+function closeFlow() { $("flow").hidden = true; document.body.style.overflow = ""; }
+function showStep(n) {
+  $("step1").hidden = n !== 1; $("step2").hidden = n !== 2;
+  $("stp1").className = n === 1 ? "on" : "past"; $("stp2").className = n === 2 ? "on" : "";
+  $("flow").scrollTop = 0; step1Btn();
+}
+const facesChoice = () => document.querySelector('input[name=faces]:checked')?.value;
+function step1Btn() {
+  const c = facesChoice(), b = $("step1Next");
+  b.disabled = !c;
+  b.textContent = c === "yes" ? "Continue →" : c === "no" ? "Submit team card" : "Continue";
+}
+document.querySelectorAll('input[name=faces]').forEach(r => r.onchange = step1Btn);
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeFlow);
+$("step1Next").onclick = () => {
+  const c = facesChoice(); const f = formData(); if (!c || !f) return;
+  if (c === "no") upload(f, { faces: false }, $("step1Next"));
+  else showStep(2);
+};
+$("step2Back").onclick = () => showStep(1);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("flow").hidden) closeFlow(); });
+
+// ---- flow: step 2 (tap faces, each person confirms)
+$("tagger").onclick = e => {
+  const r = $("tagImg").getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+  if (x < 0 || x > 100 || y < 0 || y > 100) return;
+  people.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, name: "", confirmed: false });
+  renderPeople();
+  const inputs = document.querySelectorAll("#people input[type=text]");
+  inputs[inputs.length - 1]?.focus({ preventScroll: true });
+};
+function renderPeople() {
+  $("marks").innerHTML = people.map((p, i) =>
+    `<div class="mark ${p.name.trim() && p.confirmed ? "ok" : ""}" style="left:${p.x}%;top:${p.y}%">${i + 1}</div>`).join("");
+  const stmt = esc(CFG.PHOTO_CONSENT_STATEMENT || "I agree that this photo may be displayed publicly.");
+  $("people").innerHTML = people.length ? people.map((p, i) => `
+    <div class="person ${p.name.trim() && p.confirmed ? "ok" : ""}" data-i="${i}">
+      <div class="num">${i + 1}</div>
+      <div>
+        <input type="text" data-k="name" maxlength="80" placeholder="Person ${i + 1}: full name" value="${esc(p.name)}" autocomplete="off">
+        <label class="agree"><input type="checkbox" data-k="confirmed" ${p.confirmed ? "checked" : ""}>
+          <span><b>I am person ${i + 1}.</b> ${stmt}</span></label>
+        <div class="priv">Your name is kept privately by your instructor and never shown publicly.</div>
+      </div>
+      <button class="btn sm ghost" data-remove title="Remove this marker">✕</button>
+    </div>`).join("")
+    : `<div class="empty-people">Tap each face in the photo above to add that person here.</div>`;
+  step2Btn();
+}
+$("people").addEventListener("input", e => {
+  const row = e.target.closest(".person"); if (!row) return;
+  const p = people[+row.dataset.i], k = e.target.dataset.k;
+  if (k === "name") p.name = e.target.value;
+  if (k === "confirmed") p.confirmed = e.target.checked;
+  // update status colours without re-rendering (keeps typing focus)
+  const ok = p.name.trim() && p.confirmed;
+  row.classList.toggle("ok", !!ok);
+  $("marks").children[+row.dataset.i]?.classList.toggle("ok", !!ok);
+  step2Btn();
+});
+$("people").addEventListener("click", e => {
+  if (!e.target.closest("[data-remove]")) return;
+  people.splice(+e.target.closest(".person").dataset.i, 1); renderPeople();
+});
+function step2Btn() {
+  const done = people.filter(p => p.name.trim() && p.confirmed).length;
+  const b = $("step2Submit");
+  b.disabled = !people.length || done < people.length;
+  b.textContent = !people.length ? "Submit team card" : done < people.length
+    ? `Waiting for ${people.length - done} of ${people.length} to confirm` : "Submit team card";
+}
+$("step2Submit").onclick = () => {
+  const f = formData(); if (!f) return;
+  upload(f, { faces: true, statement: CFG.PHOTO_CONSENT_STATEMENT,
+    consents: people.map(p => ({ x: p.x, y: p.y, name: p.name.trim(), confirmed: p.confirmed })) }, $("step2Submit"));
 };
 
 counts(); load();

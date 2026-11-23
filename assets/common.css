@@ -19,9 +19,9 @@
   --ok: #4ade80;
   --warn: #fbbf24;
   --radius: 14px;
-  --display: "Chakra Petch", system-ui, sans-serif;
-  --body: "IBM Plex Sans", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --display: "Chakra Petch", "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Pretendard Variable", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }

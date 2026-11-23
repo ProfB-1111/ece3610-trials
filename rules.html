@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How It Works · ECE 3610 Trials</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="assets/common.css">
 <style>
   .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px; }
   .box { padding: 28px; }
+  html[lang=ko] body { word-break: keep-all; }
   h1 { margin: 0 0 16px; font: 700 1.8rem var(--display); text-transform: uppercase; letter-spacing: .04em; }
   .how-steps p { font-size: 1rem; }
 </style>
@@ -20,19 +22,32 @@
     <div class="brand-mark" id="course">ECE 3610</div>
     <div><div class="brand-title" id="title">Final Course Trials</div><div class="brand-sub" id="subtitle"></div></div>
   </div>
-  <a class="btn sm" href="index.html">View leaderboard →</a>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="btn sm ghost" id="langBtn" type="button"></button>
+    <a class="btn sm" href="index.html" id="lbLink">View leaderboard →</a>
+  </div>
 </header>
-<main class="wrap"><section class="box panel"><h1>How it works</h1><div id="how"></div></section></main>
+<main class="wrap"><section class="box panel"><h1 id="howTitle">How it works</h1><div id="how"></div></section></main>
 <script src="assets/config.js"></script>
+<script src="assets/i18n.js"></script>
 <script src="assets/api.js"></script>
 <script src="assets/how.js"></script>
 <script>
   const C = TRIALS_CONFIG;
   Trials.renderLogos(document.getElementById("logos"));
   document.getElementById("course").textContent = C.COURSE;
-  document.getElementById("title").textContent = C.TITLE;
-  document.getElementById("subtitle").textContent = C.SUBTITLE;
-  renderHowItWorks(document.getElementById("how"));
+  const $ = id => document.getElementById(id);
+  function applyLang() {
+    $("title").textContent = I18N.cfg(C, "TITLE");
+    $("subtitle").textContent = I18N.cfg(C, "SUBTITLE");
+    $("howTitle").textContent = I18N.t("how");
+    $("lbLink").textContent = I18N.t("viewLeaderboard");
+    $("langBtn").textContent = I18N.t("langBtn"); $("langBtn").title = I18N.t("langTitle");
+    document.title = `${I18N.t("how")} · ${C.COURSE}`;
+    renderHowItWorks($("how"));
+  }
+  $("langBtn").onclick = () => { I18N.set(I18N.lang === "ko" ? "en" : "ko"); applyLang(); };
+  applyLang();
 </script>
 </body>
 </html>

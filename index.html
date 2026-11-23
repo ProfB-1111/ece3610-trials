@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ECE 3610 · Final Course Trials</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="assets/common.css">
 <style>
   html, body { height: 100%; }
@@ -12,6 +13,9 @@
   /* ---------- header ---------- */
   .top { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 28px; border-bottom: 1px solid var(--line); background: rgba(7,9,13,.85); }
   .top-right { display: flex; align-items: center; gap: 12px; }
+  html[lang=ko] body { word-break: keep-all; }
+  html[lang=ko] .upper, html[lang=ko] .sec-head h2, html[lang=ko] .tag, html[lang=ko] .pod .ec { letter-spacing: .04em; }
+  .lang-btn { font-weight: 600; }
   .clock { font: 500 1.05rem var(--mono); color: var(--muted); min-width: 92px; text-align: right; }
 
   /* ---------- layout ---------- */
@@ -207,6 +211,7 @@
   </div>
   <div class="top-right">
     <span class="pill" id="status"><span class="dot"></span><span>Connecting</span></span>
+    <button class="btn sm ghost lang-btn" id="langBtn" type="button"></button>
     <button class="btn sm ghost" id="howBtn">How it works</button>
     <a class="btn sm live" id="liveLink" target="_blank" rel="noopener" hidden>● Watch live</a>
     <div class="clock" id="clock">--:--:--</div>
@@ -216,11 +221,11 @@
 <main class="grid">
   <section class="board panel">
     <div class="sec-head">
-      <h2>Leaderboard</h2>
-      <div class="note">Ranked by best single run · <b>Top <span id="ecN">3</span> earn extra credit</b></div>
+      <h2 id="lbTitle">Leaderboard</h2>
+      <div class="note" id="lbNote"></div>
     </div>
     <div class="podium" id="podium"></div>
-    <div class="thead"><span>#</span><span></span><span>Team</span><span class="hide-s">Runs</span><span class="r">Best</span><span class="r hide-s">Avg</span></div>
+    <div class="thead"><span>#</span><span></span><span data-i18n="thTeam">Team</span><span class="hide-s" data-i18n="thRuns">Runs</span><span class="r" data-i18n="thBest">Best</span><span class="r hide-s" data-i18n="thAvg">Avg</span></div>
     <div class="rows" id="rows"></div>
   </section>
 
@@ -229,8 +234,8 @@
       <div class="cam-ph" id="camPh">
         <div>
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
-          <p id="camMsg">Camera offline</p>
-          <button class="btn sm" id="camBtn" hidden>Enable camera</button>
+          <p id="camMsg" data-i18n="camOffline">Camera offline</p>
+          <button class="btn sm" id="camBtn" data-i18n="enableCam" hidden>Enable camera</button>
         </div>
       </div>
       <div class="cam-ov">
@@ -253,7 +258,7 @@
   </section>
 </main>
 
-<footer class="ticker"><span class="upper">Latest runs</span><div id="ticker"><span>No runs yet</span></div></footer>
+<footer class="ticker"><span class="upper" data-i18n="latestRuns">Latest runs</span><div id="ticker"><span>No runs yet</span></div></footer>
 <p class="disclaimer" id="disclaimer"></p>
 
 <div class="modal" id="modal"><div class="modal-box panel"><button class="btn sm ghost modal-close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
@@ -262,6 +267,7 @@
 <canvas id="confetti"></canvas>
 
 <script src="assets/config.js"></script>
+<script src="assets/i18n.js"></script>
 <script src="assets/api.js"></script>
 <script src="assets/how.js"></script>
 <script src="assets/teamcard.js"></script>
@@ -271,19 +277,47 @@ const $ = id => document.getElementById(id);
 
 Trials.renderLogos($("logos"));
 $("course").textContent = CFG.COURSE;
-$("title").textContent = CFG.TITLE;
-$("subtitle").textContent = CFG.SUBTITLE;
-$("ecN").textContent = CFG.EXTRA_CREDIT_SPOTS;
-$("disclaimer").textContent = CFG.CONSENT_DISCLAIMER || "";
-$("disclaimer").hidden = !CFG.CONSENT_DISCLAIMER;
-document.title = `${CFG.COURSE} · ${CFG.TITLE}`;
+// Language-dependent fixed text (re-run when the viewer switches language)
+function applyLang() {
+  const L = I18N.lang;
+  $("title").textContent = I18N.cfg(CFG, "TITLE");
+  $("subtitle").textContent = I18N.cfg(CFG, "SUBTITLE");
+  document.title = `${CFG.COURSE} · ${I18N.cfg(CFG, "TITLE")}`;
+  document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = I18N.t(el.dataset.i18n));
+  $("lbTitle").textContent = I18N.t("leaderboard");
+  $("lbNote").innerHTML = `${esc(I18N.t("rankedBy"))} · <b>${esc(I18N.t("topEC", { n: CFG.EXTRA_CREDIT_SPOTS }))}</b>`;
+  $("howBtn").textContent = I18N.t("how");
+  $("langBtn").textContent = I18N.t("langBtn"); $("langBtn").title = I18N.t("langTitle");
+  $("langBtn").lang = L === "ko" ? "en" : "ko";
+  const disc = I18N.cfg(CFG, "CONSENT_DISCLAIMER") || "";
+  $("disclaimer").textContent = disc; $("disclaimer").hidden = !disc;
+  if (!CFG.LIVE_LINK) $("liveLink").textContent = I18N.t("openYT");
+  setStatus(statusKind);
+}
+let statusKind = "connecting";
+$("langBtn").onclick = () => {
+  I18N.set(I18N.lang === "ko" ? "en" : "ko");
+  applyLang();
+  $("modal").classList.remove("open");
+  if (data) { render(); cardKey = ""; renderCard(true); }
+  streamText();
+};
+applyLang();
+function setStatus(kind) {
+  statusKind = kind;
+  const cls = { live: "live", demo: "demo", reconnecting: "err" }[kind] || "";
+  $("status").className = "pill " + cls;
+  $("status").innerHTML = `<span class="dot"></span><span>${esc(I18N.t(kind))}</span>`;
+}
+
+
 const params = new URLSearchParams(location.search);
 const CAM_MODE = params.get("cam") || CFG.CAMERA_MODE;
 // Stream delay: ?delay=ms overrides config; no delay when showing a local webcam.
 const DELAY = params.has("delay") ? Number(params.get("delay")) || 0
             : CAM_MODE === "local" || CAM_MODE === "none" ? 0 : Number(CFG.STREAM_DELAY_MS) || 0;
 
-if (!CFG.LIVE_LINK) $("liveLink").textContent = "▶ Open on YouTube";   // shown/linked by applyStream()
+
 
 let data = null, list = [], sig = "", offset = 0, seen = null, leaderId = null;
 
@@ -293,7 +327,7 @@ function avatar(t, cls, extra = "") {
   const bg = t.photo ? `background-image:url('${esc(t.photo)}')` : `background:linear-gradient(135deg,hsl(${h},45%,30%),hsl(${(h+50)%360},50%,14%))`;
   return `<div class="avatar ${cls}" style="${bg};${extra}">${t.photo ? "" : esc(initials(t.team))}</div>`;
 }
-const medal = r => ["", "1ST", "2ND", "3RD"][r] || r + "TH";
+const medal = r => r <= 3 ? I18N.t("medal" + r) : I18N.t("medalN", { n: r });
 const runDots = t => {
   const n = Math.max(CFG.RUNS_PER_TEAM, t.runs.length);
   return `<div class="dots">${Array.from({ length: n }, (_, i) => {
@@ -308,7 +342,7 @@ function render() {
   const flag = t => { const k = t.team.toLowerCase(); return k === cur ? "running" : k === nxt ? "next" : ""; };
   const tag = t => {
     const f = flag(t); if (!f) return "";
-    if (f === "next") return `<span class="tag next">UP NEXT</span>`;
+    if (f === "next") return `<span class="tag next">${I18N.t("tagNext")}</span>`;
     const g = stageInfo(); return g ? `<span class="tag ${g.key}">${g.tag}</span>` : "";
   };
   const ranked = list.filter(t => t.rank != null);
@@ -316,13 +350,13 @@ function render() {
   // podium (display order 2,1,3)
   $("podium").innerHTML = [2, 1, 3].map(r => {
     const t = ranked[r - 1];
-    if (!t) return `<div class="pod r${r} empty"><span class="medal">${medal(r)}</span><div class="avatar ph" style="background:rgba(255,255,255,.03)"></div><div class="nm muted">Open spot</div><div class="tm">—</div></div>`;
+    if (!t) return `<div class="pod r${r} empty"><span class="medal">${medal(r)}</span><div class="avatar ph" style="background:rgba(255,255,255,.03)"></div><div class="nm muted">${I18N.t("openSpot")}</div><div class="tm">—</div></div>`;
     return `<div class="pod r${r} ${flag(t)}" data-team="${esc(t.team)}">
-      <span class="medal">${medal(r)}</span>${t.ec ? `<span class="ec">EXTRA CREDIT</span>` : ""}
+      <span class="medal">${medal(r)}</span>${t.ec ? `<span class="ec">${I18N.t("ec")}</span>` : ""}
       ${avatar(t, "ph")}
       <div class="nm">${esc(t.team)}${tag(t)}</div><div class="rb">${esc(t.robot || " ")}</div>
       <div class="tm mono">${fmtTime(t.best)}</div>
-      <div class="sub"><span>AVG ${fmtTime(t.avg)}</span><span>${t.runs.length}/${CFG.RUNS_PER_TEAM} RUNS</span></div>
+      <div class="sub"><span>${I18N.t("avgX", { t: fmtTime(t.avg) })}</span><span>${I18N.t("runsX", { n: t.runs.length, m: CFG.RUNS_PER_TEAM })}</span></div>
     </div>`;
   }).join("");
 
@@ -334,12 +368,12 @@ function render() {
     <div class="row ${t.rank == null ? "unranked" : ""} ${flag(t)}" data-team="${esc(t.team)}">
       <span class="rk">${t.rank ?? "–"}</span>
       ${avatar(t, "av")}
-      <div class="nm">${esc(t.team)}${tag(t)}<small>${esc(t.robot || (t.runs.length ? "" : "Awaiting first run"))}</small></div>
+      <div class="nm">${esc(t.team)}${tag(t)}<small>${esc(t.robot || (t.runs.length ? "" : I18N.t("awaitingFirst")))}</small></div>
       <span class="hide-s">${runDots(t)}</span>
       <span class="bt r">${fmtTime(t.best)}</span>
       <span class="ag r hide-s">${fmtTime(t.avg)}</span>
     </div>`).join("")
-    : (list.length ? "" : `<div class="empty-msg">No teams yet — add team names to the Teams sheet.</div>`);
+    : (list.length ? "" : `<div class="empty-msg">${I18N.t("noTeams")}</div>`);
   // FLIP animate rank changes
   $("rows").querySelectorAll(".row").forEach(el => {
     const b = before[el.dataset.team]; if (b == null) return;
@@ -352,8 +386,8 @@ function render() {
   $("ticker").innerHTML = latest.length ? latest.map(r => {
     const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
     const n = t ? t.runs.find(x => x.id === r.id)?.n : "";
-    return `<span><b>${esc(r.team)}</b>Run ${n} · <span class="${r.status !== "OK" ? "dnf" : ""}">${r.status === "OK" ? fmtTime(r.time) : esc(r.status)}</span></span>`;
-  }).join("") : "<span>No runs yet</span>";
+    return `<span><b>${esc(r.team)}</b>${I18N.t("runN", { n })} · <span class="${r.status !== "OK" ? "dnf" : ""}">${r.status === "OK" ? fmtTime(r.time) : esc(r.status)}</span></span>`;
+  }).join("") : `<span>${I18N.t("noRuns")}</span>`;
 
   renderStageInfo();
   renderCard(true);
@@ -375,22 +409,22 @@ function stageInfo() {
   const st = data.state, R = CFG.RUNS_PER_TEAM;
   if (st.timerState === "done") {
     const r = (t.runs || []).find(x => x.id === st.lastRunId) || (t.runs || [])[t.runs.length - 1];
-    if (r && r.status !== "OK") return { key: "done", tag: `RUN ${r.n} · ${r.status}`, label: `Run ${r.n} · ${r.status}`, detail: "", run: r };
-    return { key: "done", tag: "RUN COMPLETE", label: r ? `Run ${r.n} complete` : "Run complete", detail: r ? fmtTime(r.time) : "", run: r };
+    if (r && r.status !== "OK") return { key: "done", tag: I18N.t("tagDoneStatus", { n: r.n, s: r.status }), label: I18N.t("lblDoneStatus", { n: r.n, s: r.status }), detail: "", run: r };
+    return { key: "done", tag: I18N.t("tagDone"), label: r ? I18N.t("lblDone", { n: r.n }) : I18N.t("lblDoneAny"), detail: r ? fmtTime(r.time) : "", run: r };
   }
-  const n = (t.runs || []).length + 1, d = `Run ${n} / ${R}`;
-  if (st.timerState === "running") return { key: "running", tag: "ON COURSE", label: "On course", detail: d };
-  if (st.timerState === "stopped") return { key: "stopped", tag: "FINISHED", label: "Finished", detail: d };
-  return { key: "ready", tag: "AT START LINE", label: "At the start line", detail: d };
+  const n = (t.runs || []).length + 1, d = I18N.t("runOf", { n, m: R });
+  if (st.timerState === "running") return { key: "running", tag: I18N.t("tagRunning"), label: I18N.t("lblRunning"), detail: d };
+  if (st.timerState === "stopped") return { key: "stopped", tag: I18N.t("tagStopped"), label: I18N.t("lblStopped"), detail: d };
+  return { key: "ready", tag: I18N.t("tagReady"), label: I18N.t("lblReady"), detail: d };
 }
 
 function renderStageInfo() {
   const t = curTeam(), st = data.state;
   const chip = $("nextChip");
   chip.hidden = !(st.nextTeam && t);
-  chip.innerHTML = `Up next&nbsp;<b>${esc(st.nextTeam || "")}</b>`;
+  chip.innerHTML = `${I18N.t("upNext")}&nbsp;<b>${esc(st.nextTeam || "")}</b>`;
   if (!t) {
-    $("camTeam").innerHTML = st.nextTeam ? `<small style="color:var(--warn)">Up next</small>${esc(st.nextTeam)}` : `<small>Standby</small>Waiting for next team`;
+    $("camTeam").innerHTML = st.nextTeam ? `<small style="color:var(--warn)">${I18N.t("upNext")}</small>${esc(st.nextTeam)}` : `<small>${I18N.t("standby")}</small>${I18N.t("waiting")}`;
     return;
   }
   const g = stageInfo();
@@ -413,7 +447,7 @@ function tick() {
     if (el.textContent !== txt) el.textContent = txt;
     if (!el.classList.contains(mode)) el.className = "timer mono " + mode;
   }
-  $("clock").textContent = new Date().toLocaleTimeString([], { hour12: false });
+  $("clock").textContent = new Date().toLocaleTimeString("en-GB", { hour12: false });   // 24-h HH:MM:SS in every language
   requestAnimationFrame(tick);
 }
 
@@ -433,20 +467,20 @@ function renderCard(fromData) {
     label = g.key === "done" ? g.label + (g.detail ? " · " + g.detail : "") : g.label;
     cls = g.key === "done" ? "pill donepill" : "pill live";
   }
-  else if (nxt) { item = { kind: "team", team: nxt.team }; label = "Up next"; cls = "pill nextpill"; }
+  else if (nxt) { item = { kind: "team", team: nxt.team }; label = I18N.t("upNext"); cls = "pill nextpill"; }
   else {
     const items = rotationItems();
     if (Date.now() - rotStart > CFG.SPOTLIGHT_MS) { rot++; rotStart = Date.now(); }
     item = items[rot % items.length];
-    label = item.kind === "how" ? "How it works" : "Team spotlight";
+    label = item.kind === "how" ? I18N.t("how") : I18N.t("spotlight");
   }
-  const key = label + "|" + (item.team || "how");
+  const key = I18N.lang + "|" + label + "|" + (item.team || "how");
   if (key === cardKey && !fromData) return;
   const body = $("cardBody");
   const html = item.kind === "how" ? `<div id="howCard"></div>` : teamCard(list.find(t => t.team === item.team) || cur || nxt);
   if (key !== cardKey) { body.style.animation = "none"; body.offsetHeight; body.style.animation = ""; }
   body.innerHTML = html;
-  if (item.kind === "team") { body.dataset.team = item.team; body.style.cursor = "pointer"; body.title = "Click to read the full team card"; }
+  if (item.kind === "team") { body.dataset.team = item.team; body.style.cursor = "pointer"; body.title = I18N.t("clickCard"); }
   else { delete body.dataset.team; body.style.cursor = ""; body.title = ""; }
   if (item.kind === "how") renderHowItWorks($("howCard"), { compact: true });
   $("cardLabel").className = cls;
@@ -475,13 +509,13 @@ function detectEvents(prevList) {
     data.runs.filter(r => !seen.has(r.id)).forEach(r => {
       const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
       const n = t?.runs.find(x => x.id === r.id)?.n ?? "";
-      if (r.status !== "OK") { toast(`<b>${esc(r.team)}</b> · Run ${n} · <span style="color:var(--accent)">${esc(r.status)}</span>`); return; }
+      if (r.status !== "OK") { toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span style="color:var(--accent)">${esc(r.status)}</span>`); return; }
       const prev = prevList.find(x => x.team === t?.team);
-      toast(`<b>${esc(r.team)}</b> · Run ${n} · <span class="mono">${fmtTime(r.time)}</span>`);
+      toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span class="mono">${fmtTime(r.time)}</span>`);
       if (t && t.best === r.time) {
         const newLeader = list[0]?.team === t.team && leaderId !== t.team;
-        if (newLeader) { banner("New leader!", `${t.team} · ${fmtTime(r.time)}`); confetti(); }
-        else if (t.ec && !(prev && prev.ec)) { banner("Podium!", `${t.team} moves to #${t.rank}`); confetti(.4); }
+        if (newLeader) { banner(I18N.t("newLeader"), `${t.team} · ${fmtTime(r.time)}`); confetti(); }
+        else if (t.ec && !(prev && prev.ec)) { banner(I18N.t("podium"), I18N.t("movesTo", { team: t.team, r: t.rank })); confetti(.4); }
       }
     });
   }
@@ -522,8 +556,7 @@ async function poll() {
   try {
     const d = await getData();
     offset = d._offset || 0;
-    $("status").className = "pill " + (DEMO ? "demo" : "live");
-    $("status").innerHTML = `<span class="dot"></span><span>${DEMO ? "Demo data" : "Live"}</span>`;
+    setStatus(DEMO ? "demo" : "live");
     const s = JSON.stringify([d.teams, d.runs, d.state]);
     if (!data) { apply(d); queuedSig = s; }                 // first load: show immediately
     else if (s !== queuedSig) {
@@ -534,8 +567,7 @@ async function poll() {
     }
   } catch (e) {
     console.error(e);
-    $("status").className = "pill err";
-    $("status").innerHTML = `<span class="dot"></span><span>Reconnecting</span>`;
+    setStatus("reconnecting");
   }
 }
 // Poll faster while a team is on course so the finish lands on time.
@@ -553,7 +585,7 @@ function openModal(html, after) { $("modalBody").innerHTML = html; after && afte
 $("modalClose").onclick = () => $("modal").classList.remove("open");
 $("modal").onclick = e => { if (e.target.id === "modal") $("modal").classList.remove("open"); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").classList.remove("open"); });
-$("howBtn").onclick = () => openModal(`<h2>How it works</h2><div id="howModal"></div>`, () => renderHowItWorks($("howModal")));
+$("howBtn").onclick = () => openModal(`<h2>${esc(I18N.t("how"))}</h2><div id="howModal"></div>`, () => renderHowItWorks($("howModal")));
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-team]"); if (!el) return;
   const t = list.find(x => x.team === el.dataset.team); if (t) openModal(teamCard(t, { full: true }));
@@ -575,13 +607,13 @@ async function startCam(deviceId) {
     const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
     const active = stream.getVideoTracks()[0]?.getSettings().deviceId;
     if (devs.length > 1) {
-      $("camPicker").innerHTML = devs.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === active ? "selected" : ""}>${esc(d.label || "Camera " + (i + 1))}</option>`).join("");
+      $("camPicker").innerHTML = devs.map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === active ? "selected" : ""}>${esc(d.label || I18N.t("camera", { n: i + 1 }))}</option>`).join("");
       $("camPicker").hidden = false;
     }
     if (active) store.set("ece3610_cam", active);
   } catch (e) {
     console.warn("Camera:", e);
-    $("camMsg").textContent = e.name === "NotAllowedError" ? "Camera permission blocked" : "No camera available";
+    $("camMsg").textContent = e.name === "NotAllowedError" ? I18N.t("camBlocked") : I18N.t("noCam");
     $("camBtn").hidden = false;
   }
 }
@@ -599,7 +631,7 @@ const ytWatch = id => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}
 function streamPlan(now = Date.now()) {
   const idOf = x => (x && x.youtubeId) || CFG.YOUTUBE_ID || "";
   if (CAM_MODE === "embed") return CFG.EMBED_URL ? { mode: "embed", src: CFG.EMBED_URL } : { mode: "schedule" };
-  if (!SCHED.length) return CFG.YOUTUBE_ID ? { mode: "embed", src: ytSrc(CFG.YOUTUBE_ID), id: CFG.YOUTUBE_ID } : { mode: "msg", text: "Live stream starts soon" };
+  if (!SCHED.length) return CFG.YOUTUBE_ID ? { mode: "embed", src: ytSrc(CFG.YOUTUBE_ID), id: CFG.YOUTUBE_ID } : { mode: "msg", text: "startsSoon" };
   const active = SCHED.find(x => now >= x.s - LEAD && now <= x.e + TAIL);
   const forced = params.get("live") === "1" ? (active || SCHED.find(x => now < x.e) || SCHED[SCHED.length - 1]) : null;
   const sess = active || forced;
@@ -612,57 +644,60 @@ function streamPlan(now = Date.now()) {
 // Dates/times in the viewer's own time zone (plus Korea time for reference).
 const VIEWER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
 const IN_KOREA = new Date().getTimezoneOffset() === -540;
-const dayF  = tz => new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", ...(tz && { timeZone: tz }) });
-const timeF = tz => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", ...(tz && { timeZone: tz }) });
-const tzName = (t, tz) => new Intl.DateTimeFormat(undefined, { timeZoneName: "short", ...(tz && { timeZone: tz }) })
+const dayF  = tz => new Intl.DateTimeFormat(I18N.locale, { weekday: "short", month: "short", day: "numeric", ...(tz && { timeZone: tz }) });
+const timeF = tz => new Intl.DateTimeFormat(I18N.locale, { hour: "numeric", minute: "2-digit", ...(tz && { timeZone: tz }) });
+const tzName = (t, tz) => new Intl.DateTimeFormat(I18N.locale, { timeZoneName: "short", ...(tz && { timeZone: tz }) })
   .formatToParts(t).find(p => p.type === "timeZoneName")?.value || "";
 function rangeText(x, tz, tzLabel) {
   const d1 = dayF(tz).format(x.s), d2 = dayF(tz).format(x.e), t = timeF(tz);
   const zone = tzLabel ?? (IN_KOREA && !tz ? "KST" : tzName(x.s, tz));
   return d1 === d2 ? `${d1} · ${t.format(x.s)} – ${t.format(x.e)} ${zone}` : `${d1} ${t.format(x.s)} – ${d2} ${t.format(x.e)} ${zone}`;
 }
-function untilText(ms) {
-  const m = Math.max(1, Math.round(ms / 60e3)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
-  return d ? `in ${d} day${d > 1 ? "s" : ""}${h ? `, ${h} h` : ""}` : h ? `in ${h} h ${mm} min` : `in ${mm} min`;
-}
+const untilText = ms => I18N.until(ms);
 function scheduleHTML(now = Date.now()) {
   const next = SCHED.find(x => now < x.e);
   const rows = SCHED.map(x => {
     const state = now > x.e ? "past" : now >= x.s ? "live" : x === next ? "next" : "";
-    const st = state === "past" ? "Ended" : state === "live" ? "● Live now" : state === "next" ? untilText(x.s - now) : "";
-    return `<div class="srow ${state}"><span class="badge">${esc(x.label || "Session " + (x.i + 1))}</span>
-      <div><b>${rangeText(x)}</b>${IN_KOREA ? "" : `<small>Korea: ${rangeText(x, "Asia/Seoul", "KST")}</small>`}</div>
+    const st = state === "past" ? I18N.t("ended") : state === "live" ? I18N.t("liveNow") : state === "next" ? untilText(x.s - now) : "";
+    return `<div class="srow ${state}"><span class="badge">${esc(I18N.cfg(x, "label") || I18N.t("session", { n: x.i + 1 }))}</span>
+      <div><b>${rangeText(x)}</b>${IN_KOREA ? "" : `<small>${I18N.t("koreaTime")}: ${rangeText(x, "Asia/Seoul", "KST")}</small>`}</div>
       <span class="st">${st}</span></div>`;
   }).join("");
   return `<div class="sched"><div class="upper">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
-      Live stream schedule</div>${rows}
-    <p class="tzn">Times shown in your time zone${VIEWER_TZ ? ` (${esc(VIEWER_TZ.replace(/_/g, " "))})` : ""}.</p></div>`;
+      ${I18N.t("schedTitle")}</div>${rows}
+    <p class="tzn">${I18N.t("tzNote", { tz: VIEWER_TZ ? ` (${esc(VIEWER_TZ.replace(/_/g, " "))})` : "" })}</p></div>`;
 }
 
-let streamKey = "";
+let streamKey = "", lastPlan = null;
 function applyStream() {
   if (CAM_MODE === "local" || CAM_MODE === "none") return;
   const plan = streamPlan(), key = plan.mode + "|" + (plan.src || "");
   const ph = $("camPh");
-  if (plan.mode === "schedule") ph.innerHTML = scheduleHTML();     // refresh countdowns
-  if (key === streamKey) return;
-  streamKey = key;
-  $("cam").querySelector("iframe")?.remove();
-  ph.classList.toggle("sched-on", plan.mode === "schedule" || plan.mode === "ended");
-  if (plan.mode === "embed") {
-    const f = document.createElement("iframe");
-    f.src = plan.src; f.title = "Live stream";
-    f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
-    $("cam").prepend(f); ph.hidden = true;
-    $("recPill").hidden = false;
-    $("recPill").innerHTML = plan.replay ? "▶ Replay" : `<span class="dot"></span>Live`;
-  } else {
-    ph.hidden = false; $("recPill").hidden = true;
-    if (plan.mode === "ended") ph.innerHTML = `<div class="sched"><p class="ended">The live trials have ended. Thanks for watching!</p>${scheduleHTML().replace('<div class="sched">', "<div>")}</div>`;
-    if (plan.mode === "msg") ph.innerHTML = `<div><p>${esc(plan.text)}</p></div>`;
+  if (key !== streamKey) {                       // switch between video and placeholder
+    streamKey = key;
+    $("cam").querySelector("iframe")?.remove();
+    ph.classList.toggle("sched-on", plan.mode === "schedule" || plan.mode === "ended");
+    if (plan.mode === "embed") {
+      const f = document.createElement("iframe");
+      f.src = plan.src;
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
+      $("cam").prepend(f); ph.hidden = true; $("recPill").hidden = false;
+    } else { ph.hidden = false; $("recPill").hidden = true; }
   }
-  // "Watch on YouTube" button follows the current stream
+  lastPlan = plan;
+  streamText();
+}
+// Text inside the video box (re-run every 30 s for countdowns, and on language change).
+function streamText() {
+  const plan = lastPlan; if (!plan) return;
+  const ph = $("camPh"), f = $("cam").querySelector("iframe");
+  if (f) f.title = I18N.t("liveStream");
+  if (plan.mode === "embed") $("recPill").innerHTML = plan.replay ? I18N.t("replay") : `<span class="dot"></span>${I18N.t("recLive")}`;
+  if (plan.mode === "schedule") ph.innerHTML = scheduleHTML();
+  if (plan.mode === "ended") ph.innerHTML = `<div class="sched"><p class="ended">${I18N.t("trialsEnded")}</p>${scheduleHTML().replace('<div class="sched">', "<div>")}</div>`;
+  if (plan.mode === "msg") ph.innerHTML = `<div><p>${esc(I18N.t(plan.text))}</p></div>`;
+  // "Open on YouTube" button follows the current stream
   const href = CFG.LIVE_LINK || (plan.id ? ytWatch(plan.id) : "");
   $("liveLink").hidden = !href; if (href) $("liveLink").href = href;
 }
@@ -670,7 +705,7 @@ function applyStream() {
 if (CAM_MODE === "local" && navigator.mediaDevices?.getUserMedia) {
   startCam(store.get("ece3610_cam"));
 } else if (CAM_MODE === "none") {
-  $("camMsg").textContent = "Live timer";
+  $("camMsg").textContent = I18N.t("liveTimer");
 } else {
   applyStream(); setInterval(applyStream, 30e3);
 }

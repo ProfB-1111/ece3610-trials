@@ -79,6 +79,13 @@ Latency differs a little between viewers (YouTube says most see under 5 s), so p
 
 Keys: `Space` start/stop · `Enter` save · `Esc` reset (press twice while running).
 
+## Korean / English (leaderboard and How It Works pages)
+- Visitors whose browser language is Korean get Korean automatically; everyone else gets English. The **English / 한국어** button switches, and the choice is remembered in that browser.
+- Direct links: `index.html?lang=ko`, `index.html?lang=en` (also `rules.html?lang=…`).
+- Text you edit lives in `config.js` as pairs: `TITLE` / `TITLE_KO`, `SUBTITLE_KO`, `CONSENT_DISCLAIMER_KO`, `label_ko` (schedule days, team card headings), and `HOW_IT_WORKS` / `HOW_IT_WORKS_KO`.
+- Fixed interface text (buttons, stage labels, etc.) is in `assets/i18n.js`.
+- Team-submitted text is shown as written (not translated). Submit and admin pages are English only.
+
 ## Notes
 - **Photos with faces:** after **Submit**, every new photo goes through a *photo check*. If the team says it shows faces, they tap each face to number it, and each person shown enters their name and confirms the consent statement (`PHOTO_CONSENT_STATEMENT` in `config.js`). The card can't be submitted until everyone marked has confirmed. Names, marker positions, the statement and a timestamp are saved in the private **Consents** sheet (Type = Photo); the Teams sheet also records `FacesInPhoto` (No / Yes (n)). To remove a photo, clear its `PhotoURL` cell in the Teams sheet.
 - **Member names (optional):** teams may list member names on their card. On submit, each newly listed person confirms `NAME_CONSENT_STATEMENT` (config.js) for themselves; the backend rejects any new name without a confirmation. Names already on the card aren't asked again. Each confirmation is saved in the **Consents** sheet (Type = Name). To remove a name, edit the `Members` cell in the Teams sheet.

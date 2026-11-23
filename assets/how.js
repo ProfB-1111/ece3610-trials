@@ -3,7 +3,8 @@
  *   renderHowItWorks(el, { compact: true }) leaderboard rotation card (photo + task order)
  */
 window.renderHowItWorks = function (el, opts = {}) {
-  const H = window.TRIALS_CONFIG.HOW_IT_WORKS || {};
+  const C = window.TRIALS_CONFIG, ko = window.I18N && window.I18N.lang === "ko";
+  const H = (ko && C.HOW_IT_WORKS_KO) || C.HOW_IT_WORKS || {};
   const esc = window.Trials.esc;
   const T = H.tasks || {};
 
@@ -13,7 +14,7 @@ window.renderHowItWorks = function (el, opts = {}) {
   };
   const seqs = (H.sequences || []).map(q => `
     <div class="seq">
-      <span class="gest">Gesture <b>${esc(q.gesture)}</b></span>
+      <span class="gest">${esc(H.gestureLabel || "Gesture")} <b>${esc(q.gesture)}</b></span>
       ${q.order.map(k => `<span class="arr">→</span>${chip(k)}`).join("")}
       <span class="arr">→</span><span class="home">HOME</span>
     </div>`).join("");
@@ -39,9 +40,9 @@ window.renderHowItWorks = function (el, opts = {}) {
   el.innerHTML = `
     ${H.intro ? `<p class="how-intro">${esc(H.intro)}</p>` : ""}
     ${fig}
-    ${seqs ? `<h3 class="how-h">The mission</h3>
+    ${seqs ? `<h3 class="how-h">${esc(H.missionTitle || "The mission")}</h3>
       ${H.sequenceIntro ? `<p class="how-intro">${esc(H.sequenceIntro)}</p>` : ""}<div class="seqs">${seqs}</div>` : ""}
-    ${tasks ? `<h3 class="how-h">The three tasks</h3><div class="tasks">${tasks}</div>` : ""}
+    ${tasks ? `<h3 class="how-h">${esc(H.tasksTitle || "The three tasks")}</h3><div class="tasks">${tasks}</div>` : ""}
     ${H.bonus ? `<div class="bonus"><b>★ ${esc(H.bonus.title)}</b><p>${esc(H.bonus.text)}</p></div>` : ""}
     ${(H.steps || []).length ? `<h3 class="how-h">${esc(H.rulesTitle || "Rules")}</h3>
       <ol class="how-steps">${H.steps.map(s => `<li><div><b>${esc(s.title)}</b><p>${esc(s.text)}</p></div></li>`).join("")}</ol>` : ""}

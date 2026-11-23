@@ -74,6 +74,10 @@ window.TRIALS_CONFIG = {
   },
 
   // Shown at the bottom of the leaderboard page. Set to "" to hide.
+  // Banner under the video box. Set to "" to hide. Hidden automatically after the last session.
+  IN_PERSON_MESSAGE: "Prefer to watch in person? Come be part of the action in Room U507!",
+  IN_PERSON_MESSAGE_KO: "직접 보고 싶으신가요? U507호에서 현장의 열기를 함께 느껴 보세요!",
+
   CONSENT_DISCLAIMER:
     "All names and photos of people shown on this page are displayed with the consent of the individuals involved.",
   CONSENT_DISCLAIMER_KO:

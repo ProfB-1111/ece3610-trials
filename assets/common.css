@@ -148,9 +148,11 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .qa.ph p { color: var(--dim); font-style: italic; }
 .qa.ph { border-left-color: var(--line-2); }
 /* compact (leaderboard spotlight): photo shrinks so stats + runs always fit */
-.tcard:not(.full):not(.stack) .tc-ph { aspect-ratio: auto; flex: 1 1 0; min-height: 80px;
+.tcard:not(.full):not(.stack) .tc-ph { aspect-ratio: auto; flex: 1 1 0; min-height: 48px;
   background-size: contain; background-repeat: no-repeat; background-position: center; background-color: #05070a; }  /* never crop the team's photo */
-.tcard:not(.full):not(.stack) .tc-left { min-height: 0; }
+.tcard:not(.full):not(.stack) .tc-left { min-height: 0; gap: 8px; }
+.tcard:not(.full):not(.stack) .tc-runs div { padding: 3px 9px; }
+.tcard:not(.full):not(.stack) .tc-stats div { padding: 4px 8px; }
 /* stacked (narrow / preview): photo, name + comments, then stats + runs */
 .tcard.stack { display: flex; flex-direction: column; gap: 14px; }
 .tcard.stack .tc-left { display: contents; }
@@ -198,12 +200,15 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .bonus { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(245,196,81,.07); border: 1px solid rgba(245,196,81,.3); }
 .bonus b { color: var(--gold); }
 .bonus p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.45; }
-.how-compact { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.how-compact { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 16px; align-items: start; }
 .how-compact .how-fig figcaption { display: none; }
-.how-compact .how-intro { font-size: .88rem; margin-bottom: 10px; }
-.how-compact .seq { padding: 8px 10px; gap: 5px 6px; }
-.how-compact .tchip { font-size: .76rem; padding: 3px 8px; }
-.how-compact .seq .home, .how-compact .seq .gest { font-size: .72rem; }
+.how-compact .how-intro { font-size: .84rem; line-height: 1.45; margin-bottom: 8px; }
+.how-compact .seqs { gap: 7px; }
+.how-compact .seq { padding: 6px 9px; gap: 4px 5px; }
+.how-compact .tchip { font-size: .72rem; padding: 2px 7px; gap: 4px; }
+.how-compact .seq .home, .how-compact .seq .gest { font-size: .68rem; }
+.how-compact .seq .gest b { width: 24px; height: 24px; font-size: .9rem; margin-left: 4px; }
+.how-compact .seq .home { padding: 2px 7px; }
 .how-more { font-size: .78rem; color: var(--dim); margin: 10px 0 0; }
 @media (max-width: 640px) { .how-compact { grid-template-columns: 1fr; } }
 .how-gloss { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted); }

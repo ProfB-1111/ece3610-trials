@@ -81,6 +81,32 @@
   .cam-ph { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim);
     background: repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 12px, transparent 12px 24px); }
   .cam-ph p { margin: 8px 0 14px; font-size: .85rem; }
+  /* stream schedule (shown in the video box outside live sessions) */
+  .cam-ph.sched-on { place-items: start center; padding: 6% 6% 96px; overflow: hidden; }
+  .sched { width: 100%; max-width: 620px; text-align: left; color: var(--text); }
+  .sched .upper { color: var(--accent); display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .srow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 11px 14px; margin-bottom: 8px;
+    border: 1px solid var(--line-2); border-radius: 12px; background: rgba(5,7,10,.6); }
+  .srow .badge { font: 700 .7rem var(--mono); letter-spacing: .08em; padding: 4px 8px; border-radius: 6px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line-2); }
+  .srow b { display: block; font: 600 1.02rem var(--display); }
+  .srow small { display: block; color: var(--dim); font-size: .76rem; margin-top: 2px; }
+  .srow .st { font: 600 .72rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); text-align: right; }
+  .srow.next { border-color: rgba(61,214,198,.55); background: rgba(61,214,198,.07); }
+  .srow.next .badge { color: var(--live); border-color: rgba(61,214,198,.5); }
+  .srow.next .st { color: var(--live); }
+  .srow.live { border-color: rgba(229,72,77,.6); background: rgba(229,72,77,.1); }
+  .srow.live .st { color: var(--accent); }
+  .srow.past { opacity: .45; }
+  .srow.past b { text-decoration: line-through; }
+  .sched .tzn { font-size: .72rem; color: var(--dim); margin: 4px 0 0; }
+  .sched .ended { font: 600 1.1rem var(--display); margin: 0 0 12px; }
+  @media (max-width: 640px) {
+    .cam-ph.sched-on { padding: 10px 10px 62px; }
+    .srow { padding: 5px 8px; gap: 8px; margin-bottom: 5px; border-radius: 9px; } .srow b { font-size: .8rem; }
+    .srow .badge { font-size: .6rem; padding: 3px 5px; } .srow .st { font-size: .6rem; }
+    .srow small, .sched .tzn { display: none; }
+    .sched .upper { margin-bottom: 6px; font-size: .62rem; }
+  }
   .cam-ov { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
   .cam-ov .tl { display: flex; gap: 8px; }
   .cam-bot { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px;
@@ -257,8 +283,7 @@ const CAM_MODE = params.get("cam") || CFG.CAMERA_MODE;
 const DELAY = params.has("delay") ? Number(params.get("delay")) || 0
             : CAM_MODE === "local" || CAM_MODE === "none" ? 0 : Number(CFG.STREAM_DELAY_MS) || 0;
 
-const liveHref = CFG.LIVE_LINK || (CFG.YOUTUBE_ID ? `https://www.youtube.com/watch?v=${encodeURIComponent(CFG.YOUTUBE_ID)}` : "");
-if (liveHref) { $("liveLink").href = liveHref; $("liveLink").hidden = false; if (!CFG.LIVE_LINK) $("liveLink").textContent = "▶ Open on YouTube"; }
+if (!CFG.LIVE_LINK) $("liveLink").textContent = "▶ Open on YouTube";   // shown/linked by applyStream()
 
 let data = null, list = [], sig = "", offset = 0, seen = null, leaderId = null;
 
@@ -563,19 +588,91 @@ async function startCam(deviceId) {
 $("camBtn").onclick = () => startCam();
 $("camPicker").onchange = e => startCam(e.target.value);
 
-const embedSrc = CAM_MODE === "youtube" && CFG.YOUTUBE_ID
-  ? `https://www.youtube.com/embed/${encodeURIComponent(CFG.YOUTUBE_ID)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`
-  : CAM_MODE === "embed" ? CFG.EMBED_URL : "";
+// ---------------------------------------------------------------- live stream + schedule
+const SCHED = (CFG.STREAM_SCHEDULE || []).map((x, i) => ({ ...x, s: Date.parse(x.start), e: Date.parse(x.end), i }))
+  .filter(x => isFinite(x.s) && isFinite(x.e)).sort((a, b) => a.s - b.s);
+const LEAD = (CFG.STREAM_LEAD_MIN ?? 15) * 60e3, TAIL = (CFG.STREAM_TAIL_MIN ?? 30) * 60e3;
+const ytSrc = id => `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`;
+const ytWatch = id => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+
+// What the video box should show right now.
+function streamPlan(now = Date.now()) {
+  const idOf = x => (x && x.youtubeId) || CFG.YOUTUBE_ID || "";
+  if (CAM_MODE === "embed") return CFG.EMBED_URL ? { mode: "embed", src: CFG.EMBED_URL } : { mode: "schedule" };
+  if (!SCHED.length) return CFG.YOUTUBE_ID ? { mode: "embed", src: ytSrc(CFG.YOUTUBE_ID), id: CFG.YOUTUBE_ID } : { mode: "msg", text: "Live stream starts soon" };
+  const active = SCHED.find(x => now >= x.s - LEAD && now <= x.e + TAIL);
+  const forced = params.get("live") === "1" ? (active || SCHED.find(x => now < x.e) || SCHED[SCHED.length - 1]) : null;
+  const sess = active || forced;
+  if (sess) return idOf(sess) ? { mode: "embed", src: ytSrc(idOf(sess)), id: idOf(sess), live: true } : { mode: "schedule" };
+  const last = SCHED[SCHED.length - 1];
+  if (now > last.e + TAIL) return idOf(last) ? { mode: "embed", src: ytSrc(idOf(last)), id: idOf(last), replay: true } : { mode: "ended" };
+  return { mode: "schedule" };
+}
+
+// Dates/times in the viewer's own time zone (plus Korea time for reference).
+const VIEWER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+const IN_KOREA = new Date().getTimezoneOffset() === -540;
+const dayF  = tz => new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", ...(tz && { timeZone: tz }) });
+const timeF = tz => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", ...(tz && { timeZone: tz }) });
+const tzName = (t, tz) => new Intl.DateTimeFormat(undefined, { timeZoneName: "short", ...(tz && { timeZone: tz }) })
+  .formatToParts(t).find(p => p.type === "timeZoneName")?.value || "";
+function rangeText(x, tz, tzLabel) {
+  const d1 = dayF(tz).format(x.s), d2 = dayF(tz).format(x.e), t = timeF(tz);
+  const zone = tzLabel ?? (IN_KOREA && !tz ? "KST" : tzName(x.s, tz));
+  return d1 === d2 ? `${d1} · ${t.format(x.s)} – ${t.format(x.e)} ${zone}` : `${d1} ${t.format(x.s)} – ${d2} ${t.format(x.e)} ${zone}`;
+}
+function untilText(ms) {
+  const m = Math.max(1, Math.round(ms / 60e3)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+  return d ? `in ${d} day${d > 1 ? "s" : ""}${h ? `, ${h} h` : ""}` : h ? `in ${h} h ${mm} min` : `in ${mm} min`;
+}
+function scheduleHTML(now = Date.now()) {
+  const next = SCHED.find(x => now < x.e);
+  const rows = SCHED.map(x => {
+    const state = now > x.e ? "past" : now >= x.s ? "live" : x === next ? "next" : "";
+    const st = state === "past" ? "Ended" : state === "live" ? "● Live now" : state === "next" ? untilText(x.s - now) : "";
+    return `<div class="srow ${state}"><span class="badge">${esc(x.label || "Session " + (x.i + 1))}</span>
+      <div><b>${rangeText(x)}</b>${IN_KOREA ? "" : `<small>Korea: ${rangeText(x, "Asia/Seoul", "KST")}</small>`}</div>
+      <span class="st">${st}</span></div>`;
+  }).join("");
+  return `<div class="sched"><div class="upper">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
+      Live stream schedule</div>${rows}
+    <p class="tzn">Times shown in your time zone${VIEWER_TZ ? ` (${esc(VIEWER_TZ.replace(/_/g, " "))})` : ""}.</p></div>`;
+}
+
+let streamKey = "";
+function applyStream() {
+  if (CAM_MODE === "local" || CAM_MODE === "none") return;
+  const plan = streamPlan(), key = plan.mode + "|" + (plan.src || "");
+  const ph = $("camPh");
+  if (plan.mode === "schedule") ph.innerHTML = scheduleHTML();     // refresh countdowns
+  if (key === streamKey) return;
+  streamKey = key;
+  $("cam").querySelector("iframe")?.remove();
+  ph.classList.toggle("sched-on", plan.mode === "schedule" || plan.mode === "ended");
+  if (plan.mode === "embed") {
+    const f = document.createElement("iframe");
+    f.src = plan.src; f.title = "Live stream";
+    f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
+    $("cam").prepend(f); ph.hidden = true;
+    $("recPill").hidden = false;
+    $("recPill").innerHTML = plan.replay ? "▶ Replay" : `<span class="dot"></span>Live`;
+  } else {
+    ph.hidden = false; $("recPill").hidden = true;
+    if (plan.mode === "ended") ph.innerHTML = `<div class="sched"><p class="ended">The live trials have ended. Thanks for watching!</p>${scheduleHTML().replace('<div class="sched">', "<div>")}</div>`;
+    if (plan.mode === "msg") ph.innerHTML = `<div><p>${esc(plan.text)}</p></div>`;
+  }
+  // "Watch on YouTube" button follows the current stream
+  const href = CFG.LIVE_LINK || (plan.id ? ytWatch(plan.id) : "");
+  $("liveLink").hidden = !href; if (href) $("liveLink").href = href;
+}
 
 if (CAM_MODE === "local" && navigator.mediaDevices?.getUserMedia) {
   startCam(store.get("ece3610_cam"));
-} else if (embedSrc) {
-  const f = document.createElement("iframe");
-  f.src = embedSrc; f.title = "Live stream";
-  f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; f.allowFullscreen = true;
-  $("cam").prepend(f); $("camPh").hidden = true; $("recPill").hidden = false;
+} else if (CAM_MODE === "none") {
+  $("camMsg").textContent = "Live timer";
 } else {
-  $("camMsg").textContent = CAM_MODE === "none" ? "Live timer" : "Live stream starts soon";
+  applyStream(); setInterval(applyStream, 30e3);
 }
 
 // ---------------------------------------------------------------- confetti

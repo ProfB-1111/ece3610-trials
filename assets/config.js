@@ -28,6 +28,20 @@ window.TRIALS_CONFIG = {
   // From https://www.youtube.com/watch?v=AbC123xyz  ->  YOUTUBE_ID: "AbC123xyz"
   YOUTUBE_ID: "",
 
+  // LIVE STREAM SCHEDULE — enter times in Korea time (+09:00). Viewers see them
+  // converted to their own time zone. The video box shows this schedule (with a
+  // countdown) until STREAM_LEAD_MIN before a session, shows the stream until
+  // STREAM_TAIL_MIN after it, and after the last session shows the recording.
+  // youtubeId: that day's stream (each scheduled YouTube stream has its own ID);
+  //            leave "" to use YOUTUBE_ID above.
+  // Testing outside these times: add ?live=1 to the page URL to force the stream.
+  STREAM_SCHEDULE: [
+    { label: "Day 1", start: "2026-12-01T09:00:00+09:00", end: "2026-12-01T10:20:00+09:00", youtubeId: "" },
+    { label: "Day 2", start: "2026-12-03T09:00:00+09:00", end: "2026-12-03T10:20:00+09:00", youtubeId: "" }
+  ],
+  STREAM_LEAD_MIN: 15,
+  STREAM_TAIL_MIN: 30,
+
   // STREAM DELAY (ms): how far the YouTube video runs behind real life.
   // The timer, results and celebrations on the page are held back by this
   // amount so they match what viewers see on the video.

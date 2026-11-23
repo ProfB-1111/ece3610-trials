@@ -5,6 +5,8 @@
   const DEMO_KEY = "ece3610_trials_demo_v3";
 
   // ------------------------------------------------------------ utilities
+  // Completed run: "OK", or "ODO" = completed with the odometry bonus (EC). Both rank by time.
+  const completed = r => !!r && (r.status === "OK" || r.status === "ODO") && r.time > 0;
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -47,7 +49,7 @@
       byTeam[k].runs.push({ ...r, n: byTeam[k].runs.length + 1 });
     });
     const list = Object.values(byTeam).map(t => {
-      const ok = t.runs.filter(r => r.status === "OK" && r.time > 0).map(r => r.time);
+      const ok = t.runs.filter(completed).map(r => r.time);
       const best = ok.length ? Math.min(...ok) : null;
       const avg = ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
       return { ...t, best, avg, okCount: ok.length };
@@ -247,5 +249,5 @@
     el.hidden = !L.length;
   }
 
-  window.Trials = { CFG, DEMO, esc, fmtTime, parseTime, initials, hue, standings, getData, post, resetDemo, store, renderLogos };
+  window.Trials = { CFG, DEMO, completed, esc, fmtTime, parseTime, initials, hue, standings, getData, post, resetDemo, store, renderLogos };
 })();

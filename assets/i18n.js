@@ -29,7 +29,8 @@
       camOffline: "Camera offline", camBlocked: "Camera permission blocked", noCam: "No camera available",
       enableCam: "Enable camera", camera: "Camera {n}",
       // team card
-      rank: "Rank", best: "Best", avg: "Avg", bestMark: "best", noComments: "No comments submitted yet."
+      rank: "Rank", best: "Best", avg: "Avg", bestMark: "best", noComments: "No comments submitted yet.",
+      odo: "Odometry", odoLong: "Completed with the odometry bonus"
     },
     ko: {
       langBtn: "English", langTitle: "View in English", viewLeaderboard: "순위표 보기 →",
@@ -54,7 +55,8 @@
       replay: "▶ 다시보기", recLive: "라이브", liveStream: "라이브 방송", liveTimer: "실시간 타이머",
       camOffline: "카메라 꺼짐", camBlocked: "카메라 권한이 차단되었습니다", noCam: "사용 가능한 카메라가 없습니다",
       enableCam: "카메라 켜기", camera: "카메라 {n}",
-      rank: "순위", best: "최고", avg: "평균", bestMark: "최고", noComments: "아직 등록된 소개가 없습니다."
+      rank: "순위", best: "최고", avg: "평균", bestMark: "최고", noComments: "아직 등록된 소개가 없습니다.",
+      odo: "오도메트리", odoLong: "오도메트리 보너스를 포함해 완주"
     }
   };
   const KEY = "ece3610_lang";

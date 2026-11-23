@@ -47,6 +47,7 @@
   .log tr.sel td { background: var(--live-soft); }
   .log td.t { font-family: var(--mono); font-weight: 700; }
   .log td.dnf { color: var(--accent); }
+  .log td.odo { color: var(--gold); }
   .log td.act { text-align: right; white-space: nowrap; }
   .log input, .log select { padding: 6px 8px; font-size: .85rem; }
   .log-wrap { max-height: 70vh; overflow: auto; }
@@ -115,7 +116,7 @@
       <div class="result">
         <label class="field"><span>Time (m:ss.cc or seconds)</span><input class="timein" id="timeIn" placeholder="0:00.00" inputmode="decimal"></label>
         <label class="field"><span>Result</span>
-          <select id="statusIn"><option value="OK">Completed</option><option value="DNF">DNF — did not finish</option><option value="DQ">DQ — disqualified</option></select>
+          <select id="statusIn"><option value="OK">Completed</option><option value="ODO">Completed with odometry (EC)</option><option value="DNF">DNF — did not finish</option><option value="DQ">DQ — disqualified</option></select>
         </label>
         <label class="field full"><span>Notes (optional, not shown publicly)</span><input id="notesIn" maxlength="200"></label>
         <div class="result-btns">
@@ -145,6 +146,8 @@
 <script src="assets/api.js"></script>
 <script>
 const { CFG, DEMO, esc, fmtTime, parseTime, standings, getData, post, store } = Trials;
+const DONE = s => s === "OK" || s === "ODO";            // statuses that need a time
+const STATUS_LABEL = { OK: "OK", ODO: "OK ★ Odometry", DNF: "DNF", DQ: "DQ" };
 const $ = id => document.getElementById(id);
 Trials.renderLogos($("logos"));
 $("course").textContent = CFG.COURSE;
@@ -233,10 +236,10 @@ function renderLog() {
   $("log").innerHTML = runs.map(r => {
     if (editing === r.id) return `<tr data-id="${r.id}"><td>${esc(r.team)}</td><td>${nOf[r.id] ?? ""}</td>
       <td><input id="edTime" value="${r.time != null ? fmtTime(r.time) : ""}" size="8"></td>
-      <td><select id="edStatus">${["OK", "DNF", "DQ"].map(s => `<option ${s === r.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td><select id="edStatus">${["OK", "ODO", "DNF", "DQ"].map(s => `<option value="${s}" ${s === r.status ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></td>
       <td class="act"><button class="btn sm primary" data-a="saveEdit">Save</button> <button class="btn sm ghost" data-a="cancel">✕</button></td></tr>`;
     return `<tr data-id="${r.id}" class="${r.team === sel ? "sel" : ""}"><td>${esc(r.team)}</td><td>${nOf[r.id] ?? ""}</td>
-      <td class="t">${r.status === "OK" ? fmtTime(r.time) : "—"}</td><td class="${r.status !== "OK" ? "dnf" : ""}">${esc(r.status)}</td>
+      <td class="t">${DONE(r.status) ? fmtTime(r.time) : "—"}</td><td class="${DONE(r.status) ? (r.status === "ODO" ? "odo" : "") : "dnf"}">${esc(STATUS_LABEL[r.status] || r.status)}</td>
       <td class="act"><button class="btn sm ghost" data-a="edit">Edit</button> <button class="btn sm ${confirmDel === r.id ? "primary" : "ghost"}" data-a="del">${confirmDel === r.id ? "Confirm" : "Delete"}</button></td></tr>`;
   }).join("") || `<tr><td colspan="5" class="muted">No runs recorded yet.</td></tr>`;
 }
@@ -251,7 +254,7 @@ $("log").onclick = async e => {
   }
   if (a === "saveEdit") {
     const status = $("edStatus").value, t = parseTime($("edTime").value);
-    if (status === "OK" && !(t > 0)) return toast("⚠ Enter a valid time", true);
+    if (DONE(status) && !(t > 0)) return toast("⚠ Enter a valid time", true);
     await act("updateRun", { id, time: t ?? "", status, notes: "" }); editing = null; toast("Run updated"); refresh();
   }
 };
@@ -328,11 +331,11 @@ $("saveBtn").onclick = async () => {
   if (!team) return toast("⚠ Select a team first", true);
   if (sw.mode === "running") return toast("⚠ Stop the timer first", true);
   const status = $("statusIn").value, t = parseTime($("timeIn").value);
-  if (status === "OK" && !(t > 0)) return toast("⚠ Enter a valid time, or choose DNF", true);
+  if (DONE(status) && !(t > 0)) return toast("⚠ Enter a valid time, or choose DNF", true);
   $("saveBtn").disabled = true;
   try {
     await act("addRun", { team, time: t ?? "", status, notes: $("notesIn").value });
-    toast(`Saved · <b>${esc(team)}</b> · ${status === "OK" ? fmtTime(t) : status}`);
+    toast(`Saved · <b>${esc(team)}</b> · ${DONE(status) ? fmtTime(t) + (status === "ODO" ? " ★ odometry" : "") : status}`);
     resetLocal(); await refresh();
   } catch (_) {} finally { $("saveBtn").disabled = false; }
 };

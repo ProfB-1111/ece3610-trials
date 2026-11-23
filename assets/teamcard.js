@@ -7,7 +7,7 @@
 window.TEXT_FIELDS = ["comment", "interesting", "learned"];
 
 window.teamCard = function (t, opts = {}) {
-  const { CFG, esc, fmtTime, initials, hue } = window.Trials;
+  const { CFG, esc, fmtTime, initials, hue, completed } = window.Trials;
   const P = CFG.CARD_PROMPTS || {};
   const I = window.I18N, tr = (k, en, v) => (I ? I.t(k, v) : en);   // English unless the page loaded i18n.js
   const runs = t.runs || [];
@@ -18,14 +18,15 @@ window.teamCard = function (t, opts = {}) {
     : `<div class="avatar tc-ph" style="background:linear-gradient(135deg,hsl(${h},45%,30%),hsl(${(h + 50) % 360},50%,14%))">${esc(initials(t.team || "?"))}</div>`;
 
   const n = Math.max(CFG.RUNS_PER_TEAM, runs.length);
-  const bestId = t.best != null ? runs.find(r => r.status === "OK" && r.time === t.best)?.id : null;
+  const bestId = t.best != null ? runs.find(r => completed(r) && r.time === t.best)?.id : null;
   const runRows = Array.from({ length: n }, (_, i) => {
     const r = runs[i];
     const run = tr("runN", `Run ${i + 1}`, { n: i + 1 });
     if (!r) return `<div class="pend"><span>${run}</span><span>—</span></div>`;
-    if (r.status !== "OK") return `<div class="dnf"><span>${run}</span><span>${esc(r.status)}</span></div>`;
+    if (!completed(r)) return `<div class="dnf"><span>${run}</span><span>${esc(r.status)}</span></div>`;
     const b = r.id === bestId;
-    return `<div class="${b ? "best" : ""}"><span>${run}${b ? " · " + tr("bestMark", "best") : ""}</span><span>${fmtTime(r.time)}</span></div>`;
+    const odo = r.status === "ODO" ? ` <span class="odo" title="${esc(tr("odoLong", "Completed with the odometry bonus"))}">★ ${esc(tr("odo", "Odometry"))}</span>` : "";
+    return `<div class="${b ? "best" : ""}"><span>${run}${b ? " · " + tr("bestMark", "best") : ""}${odo}</span><span>${fmtTime(r.time)}</span></div>`;
   }).join("");
 
   const qa = window.TEXT_FIELDS.map(k => {

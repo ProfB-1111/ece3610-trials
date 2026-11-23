@@ -250,8 +250,9 @@ function resetTimer_() {
 function addRun_(b) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Runs');
   const status = normStatus_(b.status);
-  const time = status === 'OK' ? Number(b.time) : (b.time ? Number(b.time) : '');
-  if (status === 'OK' && !(time > 0)) throw new Error('Time must be a positive number of seconds.');
+  const done = status === 'OK' || status === 'ODO';          // ODO = completed with odometry (EC)
+  const time = done ? Number(b.time) : (b.time ? Number(b.time) : '');
+  if (done && !(time > 0)) throw new Error('Time must be a positive number of seconds.');
   const id = Utilities.getUuid();
   sh.appendRow([id, new Date(), String(b.team), time, status, clip_(b.notes, 200)]);   // real date, no time-zone guessing
   writeState_({ timerState: 'done', timerStartMs: 0, timerElapsedMs: 0, lastRunId: id });   // "Run complete"
@@ -352,7 +353,7 @@ function getPhotoFolder_() {
   return it.hasNext() ? it.next() : DriveApp.createFolder(PHOTO_FOLDER_NAME);
 }
 
-function normStatus_(s) { s = String(s || 'OK').toUpperCase(); return ['OK', 'DNF', 'DQ'].indexOf(s) >= 0 ? s : 'OK'; }
+function normStatus_(s) { s = String(s || 'OK').toUpperCase(); return ['OK', 'ODO', 'DNF', 'DQ'].indexOf(s) >= 0 ? s : 'OK'; }
 function clip_(s, n) { return String(s || '').trim().slice(0, n); }
 function safeName_(s) { return String(s).replace(/[^\w-]+/g, '_').slice(0, 40); }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }

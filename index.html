@@ -76,6 +76,7 @@
   .dots i { width: 22px; height: 6px; border-radius: 3px; background: var(--line-2); }
   .dots i.ok { background: var(--live); }
   .dots i.dnf { background: var(--accent); }
+  .dots i.odo-dot { background: var(--gold); }
   .empty-msg { color: var(--dim); text-align: center; padding: 30px; font-size: .9rem; }
 
   /* ---------- stage ---------- */
@@ -281,7 +282,8 @@
 <script src="assets/how.js"></script>
 <script src="assets/teamcard.js"></script>
 <script>
-const { CFG, DEMO, esc, fmtTime, initials, hue, standings, getData, store } = Trials;
+const { CFG, DEMO, esc, fmtTime, initials, hue, standings, getData, store, completed } = Trials;
+const odoMark = r => r && r.status === "ODO" ? ` <span class="odo">★</span>` : "";   // completed with odometry
 const $ = id => document.getElementById(id);
 
 Trials.renderLogos($("logos"));
@@ -350,7 +352,7 @@ const medal = r => r <= 3 ? I18N.t("medal" + r) : I18N.t("medalN", { n: r });
 const runDots = t => {
   const n = Math.max(CFG.RUNS_PER_TEAM, t.runs.length);
   return `<div class="dots">${Array.from({ length: n }, (_, i) => {
-    const r = t.runs[i]; return `<i class="${r ? (r.status === "OK" ? "ok" : "dnf") : ""}"></i>`; }).join("")}</div>`;
+    const r = t.runs[i]; return `<i class="${r ? (r.status === "ODO" ? "odo-dot" : completed(r) ? "ok" : "dnf") : ""}"></i>`; }).join("")}</div>`;
 };
 
 
@@ -405,7 +407,7 @@ function render() {
   $("ticker").innerHTML = latest.length ? latest.map(r => {
     const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
     const n = t ? t.runs.find(x => x.id === r.id)?.n : "";
-    return `<span><b>${esc(r.team)}</b>${I18N.t("runN", { n })} · <span class="${r.status !== "OK" ? "dnf" : ""}">${r.status === "OK" ? fmtTime(r.time) : esc(r.status)}</span></span>`;
+    return `<span><b>${esc(r.team)}</b>${I18N.t("runN", { n })} · <span class="${completed(r) ? "" : "dnf"}">${completed(r) ? fmtTime(r.time) + odoMark(r) : esc(r.status)}</span></span>`;
   }).join("") : `<span>${I18N.t("noRuns")}</span>`;
 
   renderStageInfo();
@@ -428,8 +430,9 @@ function stageInfo() {
   const st = data.state, R = CFG.RUNS_PER_TEAM;
   if (st.timerState === "done") {
     const r = (t.runs || []).find(x => x.id === st.lastRunId) || (t.runs || [])[t.runs.length - 1];
-    if (r && r.status !== "OK") return { key: "done", tag: I18N.t("tagDoneStatus", { n: r.n, s: r.status }), label: I18N.t("lblDoneStatus", { n: r.n, s: r.status }), detail: "", run: r };
-    return { key: "done", tag: I18N.t("tagDone"), label: r ? I18N.t("lblDone", { n: r.n }) : I18N.t("lblDoneAny"), detail: r ? fmtTime(r.time) : "", run: r };
+    if (r && !completed(r)) return { key: "done", tag: I18N.t("tagDoneStatus", { n: r.n, s: r.status }), label: I18N.t("lblDoneStatus", { n: r.n, s: r.status }), detail: "", run: r };
+    return { key: "done", tag: I18N.t("tagDone"), label: r ? I18N.t("lblDone", { n: r.n }) : I18N.t("lblDoneAny"),
+      detail: r ? fmtTime(r.time) + (r.status === "ODO" ? " · ★ " + I18N.t("odo") : "") : "", run: r };
   }
   const n = (t.runs || []).length + 1, d = I18N.t("runOf", { n, m: R });
   if (st.timerState === "running") return { key: "running", tag: I18N.t("tagRunning"), label: I18N.t("lblRunning"), detail: d };
@@ -460,7 +463,7 @@ function tick() {
     let txt = null;
     if (st.timerState === "done" && st.currentTeam) {      // show the official, saved result
       const r = stageInfo()?.run; mode = "done";
-      if (r && r.status !== "OK") txt = r.status; else ms = r ? r.time * 1000 : 0;
+      if (r && !completed(r)) txt = r.status; else ms = r ? r.time * 1000 : 0;
     }
     txt = txt ?? fmtTime(Math.max(0, ms) / 1000);
     if (el.textContent !== txt) el.textContent = txt;
@@ -528,9 +531,9 @@ function detectEvents(prevList) {
     data.runs.filter(r => !seen.has(r.id)).forEach(r => {
       const t = list.find(x => x.team.toLowerCase() === String(r.team).toLowerCase());
       const n = t?.runs.find(x => x.id === r.id)?.n ?? "";
-      if (r.status !== "OK") { toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span style="color:var(--accent)">${esc(r.status)}</span>`); return; }
+      if (!completed(r)) { toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span style="color:var(--accent)">${esc(r.status)}</span>`); return; }
       const prev = prevList.find(x => x.team === t?.team);
-      toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span class="mono">${fmtTime(r.time)}</span>`);
+      toast(`<b>${esc(r.team)}</b> · ${I18N.t("runN", { n })} · <span class="mono">${fmtTime(r.time)}</span>${r.status === "ODO" ? ` <span class="odo">★ ${I18N.t("odo")}</span>` : ""}`);
       if (t && t.best === r.time) {
         const newLeader = list[0]?.team === t.team && leaderId !== t.team;
         if (newLeader) { banner(I18N.t("newLeader"), `${t.team} · ${fmtTime(r.time)}`); confetti(); }

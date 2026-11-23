@@ -130,7 +130,8 @@ window.TRIALS_CONFIG = {
       ["BEST", "Fastest completed run"],
       ["AVG", "Average of completed runs"],
       ["DNF", "Did not finish"],
-      ["EC", "Extra-credit position"]
+      ["EC", "Extra-credit position"],
+      ["★", "Completed with the odometry bonus"]
     ]
   },
 
@@ -174,7 +175,8 @@ window.TRIALS_CONFIG = {
       ["최고", "가장 빠른 완주 기록"],
       ["평균", "완주 기록의 평균"],
       ["DNF", "미완주"],
-      ["EC", "추가 점수 순위"]
+      ["EC", "추가 점수 순위"],
+      ["★", "오도메트리 보너스를 포함해 완주"]
     ]
   }
 };

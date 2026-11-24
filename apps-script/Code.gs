@@ -38,7 +38,11 @@ const MAX_TEXT = 400;       // per comment field
 const MAX_TEAM_NAME = 40;
 const MAX_MEMBERS = 8;
 const MAX_PHOTOS = 8;   // photos per team; one is the card photo (PhotoURL), all are listed in Photos (JSON)
-const CACHE_KEY = 'trials_data_v1';
+// Bump BACKEND_VERSION whenever this file changes. The website checks it (MIN_BACKEND in
+// assets/api.js) and the read cache is keyed by it, so an older deployment of this project
+// can never hand its data to the newer one.
+const BACKEND_VERSION = 6;
+const CACHE_KEY = 'trials_data_v' + BACKEND_VERSION;
 
 /** Run once from the editor to create sheets + photo folder. */
 function setup() {
@@ -97,6 +101,7 @@ function doPost(e) {
       case 'videoStart':  result = videoStart_(body); break;
       case 'videoDone':   result = videoDone_(body); break;
       case 'videoSmall':  result = videoSmall_(body); break;
+      case 'videoRemove': result = videoRemove_(body); break;
       case 'checkKey':    requireAdmin_(body); result = { ok: true }; break;
       case 'setCurrent':  requireAdmin_(body); result = setCurrent_(body); break;
       case 'setNext':     requireAdmin_(body); result = setNext_(body); break;
@@ -147,7 +152,7 @@ function readAll_() {
     .filter(r => vget(r, 'Status') === 'ready' && vget(r, 'FileId') && vget(r, 'Visible').toLowerCase() !== 'no')
     .map(r => ({ team: vget(r, 'Team'), fileId: vget(r, 'FileId'), name: vget(r, 'FileName'),
                  ts: r[VH['Timestamp']] instanceof Date ? r[VH['Timestamp']].toISOString() : vget(r, 'Timestamp') }));
-  return { ok: true, teams: teams, runs: runs, videos: videos, state: readState_(), serverNow: Date.now() };
+  return { ok: true, version: BACKEND_VERSION, teams: teams, runs: runs, videos: videos, state: readState_(), serverNow: Date.now() };
 }
 
 function submitTeam_(b) {
@@ -475,6 +480,23 @@ function videoDone_(b) {
   vsh.getRange(row, VH['Status'] + 1).setValue('ready');
   vsh.getRange(row, VH['FileId'] + 1).setValue(file.getId());
   return { ok: true, fileId: file.getId() };
+}
+
+/** Removes one of a team's training videos (edit mode): hidden from the site, file moved to Drive trash. */
+function videoRemove_(b) {
+  if (String(b.code || '').trim() !== secret_('SUBMIT_CODE')) throw new Error('Incorrect submission code.');
+  const vsh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Videos'), VH = headerMap_(vsh);
+  const want = String(b.team || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const data = rows_(vsh);
+  for (let i = 0; i < data.length; i++) {
+    if (String(data[i][VH['FileId']]) === String(b.fileId) && String(data[i][VH['Team']]).trim().toLowerCase() === want) {
+      vsh.getRange(i + 2, VH['Status'] + 1).setValue('removed');
+      vsh.getRange(i + 2, VH['Visible'] + 1).setValue('No');
+      try { DriveApp.getFileById(String(b.fileId)).setTrashed(true); } catch (_) {}
+      return { ok: true };
+    }
+  }
+  throw new Error('Video not found.');
 }
 
 function videoSmall_(b) {

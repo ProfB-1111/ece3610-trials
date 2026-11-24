@@ -188,6 +188,12 @@
         body = { action: "videoDone", id, fileId: "demo-" + id };   // small path: finish right away
       }
       // falls through
+      case "videoRemove": {
+        const before = (d.videos || []).length;
+        d.videos = (d.videos || []).filter(v => !(v.fileId === body.fileId && v.team.toLowerCase() === String(body.team).trim().toLowerCase()));
+        if (d.videos.length === before) throw new Error("Video not found.");
+        break;
+      }
       case "videoDone": {
         const dd = demoLoad(), p = (dd.pendingVideos || {})[body.id];
         if (!p) throw new Error("Upload not found.");
@@ -266,7 +272,8 @@
 
   /** The current backend always returns these fields. If they're missing, the website is
    *  talking to an older Apps Script deployment, so a page should warn instead of failing quietly. */
-  function backendOutdated(d) { return !DEMO && d && !Array.isArray(d.videos); }
+  const MIN_BACKEND = 6;   // must match BACKEND_VERSION in apps-script/Code.gs
+  function backendOutdated(d) { return !DEMO && d && (!Array.isArray(d.videos) || (Number(d.version) || 0) < MIN_BACKEND); }
   function warnOutdated(where) {
     if (document.getElementById("outdatedWarn")) return;
     const el = document.createElement("div");

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Team Card Submission · ECE 3610 Trials</title>
-<link rel="stylesheet" href="assets/common.css">
+<link rel="stylesheet" href="assets/common.css?v=202611241036">
 <style>
   .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 24px; align-items: start; }
@@ -274,9 +274,9 @@
 </div>
 <div class="toast-wrap" id="toasts"></div>
 
-<script src="assets/config.js"></script>
-<script src="assets/api.js"></script>
-<script src="assets/teamcard.js"></script>
+<script src="assets/config.js?v=202611241036"></script>
+<script src="assets/api.js?v=202611241036"></script>
+<script src="assets/teamcard.js?v=202611241036"></script>
 <script>
 const { CFG, DEMO, esc, getData, post } = Trials;
 const $ = id => document.getElementById(id);
@@ -328,7 +328,7 @@ let mode = "new";
 function clearForm() {
   $("team").value = ""; $("robot").value = ""; setMembers("");
   TEXT_FIELDS.forEach(k => $("f_" + k).value = "");
-  photos = []; mainPhoto = 0; srcImg = null; resetDrop(); renderPhotos(); vids = []; renderVids(); renderExisting(); teamHelp(); counts();
+  photos = []; mainPhoto = 0; srcImg = null; resetDrop(); renderPhotos(); vids = []; removeVids = new Set(); renderVids(); renderExisting(); teamHelp(); counts();
 }
 function setMode(m, team) {
   mode = m;
@@ -564,12 +564,28 @@ function vItem(v, i, removable) {
     ${v.state ? `<div class="bar"><i style="width:${Math.round(v.pct * 100)}%"></i></div>` : ""}</div>`;
 }
 function renderVids() { $("vlist").innerHTML = vids.map((v, i) => vItem(v, i, true)).join(""); }
+// Videos already on the card (edit mode): ✕ marks one for removal; it's removed when the card is saved.
+let removeVids = new Set();
+function myVideos() { const n = norm($("team").value).toLowerCase(); return n ? videos.filter(v => String(v.team).toLowerCase() === n) : []; }
 function renderExisting() {
-  const name = norm($("team").value).toLowerCase();
-  const mine = name ? videos.filter(v => String(v.team).toLowerCase() === name) : [];
+  const mine = myVideos();
   $("vExisting").hidden = !mine.length;
-  $("vExisting").innerHTML = mine.length ? `<b>${mine.length} video${mine.length > 1 ? "s" : ""} already on your card.</b> Any you add here are added to them.` : "";
+  if (!mine.length) { $("vExisting").innerHTML = ""; return; }
+  const keep = mine.filter(v => !removeVids.has(v.fileId)).length;
+  $("vExisting").innerHTML = `<b>On your card now (${keep} video${keep === 1 ? "" : "s"}).</b> New videos you add below are added to these.
+    <div class="vlist" style="margin-top:8px">${mine.map((v, i) => {
+      const gone = removeVids.has(v.fileId);
+      return `<div class="vitem ${gone ? "err" : ""}" data-fid="${esc(v.fileId)}"><span class="vi">${gone ? "🗑️" : "🎬"}</span>
+        <div style="min-width:0"><b style="${gone ? "text-decoration:line-through;opacity:.6" : ""}">${esc(v.name || "Video " + (i + 1))}</b>
+          <small>${gone ? "Will be removed when you save" : "Video " + (i + 1)}</small></div>
+        <button class="btn sm ghost" type="button" data-vex>${gone ? "Undo" : "✕ Remove"}</button></div>`; }).join("")}</div>`;
 }
+$("vExisting").addEventListener("click", e => {
+  const b = e.target.closest("[data-vex]"); if (!b) return;
+  const id = b.closest(".vitem").dataset.fid;
+  removeVids.has(id) ? removeVids.delete(id) : removeVids.add(id);
+  renderExisting();
+});
 $("vlist").addEventListener("click", e => { const b = e.target.closest("[data-vrm]"); if (b) { vids.splice(+b.closest(".vitem").dataset.v, 1); renderVids(); } });
 $("vdrop").onclick = e => { if (e.target.id !== "videos") $("videos").click(); };
 $("videos").onchange = e => addVideos(e.target.files);
@@ -609,6 +625,13 @@ async function upload(f, extra, btn) {
     return;
   }
   window.scrollTo(0, 0);
+  const removeFailed = [];
+  for (const fileId of removeVids) {
+    try { await post("videoRemove", { team: f.team, code: f.code, fileId }); }
+    catch (e) { removeFailed.push(fileId); }
+  }
+  if (removeFailed.length) toast(`⚠ ${removeFailed.length} video${removeFailed.length > 1 ? "s" : ""} could not be removed. Try again from Edit.`, true);
+  removeVids = new Set();
   if (!vids.length) return doneScreen(f.team, []);
   const vx = { team: f.team, code: f.code, faces: vFacesChoice() === "yes" };
   if (vx.faces) { vx.statement = CFG.VIDEO_CONSENT_STATEMENT; vx.consents = vpeople.map(p => ({ name: p.name.trim(), confirmed: p.confirmed })); }

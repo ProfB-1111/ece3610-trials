@@ -90,7 +90,12 @@ Keys: `Space` start/stop · `Enter` save · `Esc` reset (press twice while runni
 - **Photos:** up to 8 per team, each cropped on the page; the ★ photo is the card photo, the rest show in a gallery in the full team card. Stored in your Drive folder *ECE3610 Trials Robot Photos*; the Teams sheet keeps the card photo (`PhotoURL`) and the full list (`Photos`). Removed photos go to the Drive trash.
 - **Training videos:** uploaded straight from the student's browser to your Drive folder (ID in `Code.gs`, `VIDEO_FOLDER_ID_DEFAULT`, or Script Property `VIDEO_FOLDER_ID`). Each video gets a row in the **Videos** sheet; set **Visible** to `No` to hide one from the site without deleting it. People shown are recorded in **Consents** (Type = Video).
 - **One-time re-authorization after updating `Code.gs` for videos:** in the Apps Script editor, run **`setup`** once and approve the new permission ("Connect to an external service"), then deploy a new version. Without this, video uploads fail.
+- **Removing videos:** in edit mode each video on the card has ✕ Remove (Undo until saved). On save it's marked `removed` in the Videos sheet and the file goes to Drive trash (recoverable 30 days).
 - **Edit my team card:** students pick their team and everything loads (photos, comments, names, existing videos). Share a direct link: `submit.html?edit=Team%20Name`.
+
+## Updating (for whoever maintains the site)
+- When `apps-script/Code.gs` changes, bump `BACKEND_VERSION` there and `MIN_BACKEND` in `assets/api.js`; pages show a red "server out of date" banner until the new Apps Script version is deployed. Deploy by **editing the existing deployment → New version** (keeps the URL).
+- Before pushing website changes, run `python3 tools/bump_assets.py` so browsers load the new files immediately.
 
 ## Notes
 - **Photos with faces:** after **Submit**, every new photo goes through a *photo check*. If the team says it shows faces, they tap each face to number it, and each person shown enters their name and confirms the consent statement (`PHOTO_CONSENT_STATEMENT` in `config.js`). The card can't be submitted until everyone marked has confirmed. Names, marker positions, the statement and a timestamp are saved in the private **Consents** sheet (Type = Photo); the Teams sheet also records `FacesInPhoto` (No / Yes (n)). To remove a photo, clear its `PhotoURL` cell in the Teams sheet.

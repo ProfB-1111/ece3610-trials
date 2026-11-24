@@ -3,7 +3,7 @@
 window.TRIALS_CONFIG = {
   // Paste your Apps Script Web App URL here (ends in /exec).
   // Leave empty to run in DEMO mode (sample data stored in this browser only).
-  API_URL: "https://script.google.com/macros/s/AKfycbyW5l5jwicQwMPH8lp30bn6IulVMaeRKnPfjXfIYUxwrWZur5FE8RUxLI11UGw5qgLhOw/exec",
+  API_URL: "https://script.google.com/macros/s/AKfycbxjTuYedjWk8zEHTiQ0_8q7q8svi38W9hcOQkmnkj4MW80yLM39ZvR2vW0g9PWaBs-bIQ/exec",
 
   COURSE: "ECE 3610",
   TITLE: "Final Course Trials",

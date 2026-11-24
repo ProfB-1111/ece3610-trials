@@ -264,6 +264,19 @@
     return j;
   }
 
+  /** The current backend always returns these fields. If they're missing, the website is
+   *  talking to an older Apps Script deployment, so a page should warn instead of failing quietly. */
+  function backendOutdated(d) { return !DEMO && d && !Array.isArray(d.videos); }
+  function warnOutdated(where) {
+    if (document.getElementById("outdatedWarn")) return;
+    const el = document.createElement("div");
+    el.id = "outdatedWarn";
+    el.style.cssText = "position:sticky;top:0;z-index:200;background:#7a1d20;color:#fff;padding:12px 20px;font:600 .92rem var(--body);text-align:center;line-height:1.45";
+    el.innerHTML = "⚠ The server (Google Apps Script) is out of date, so " + where + " won't work correctly. " +
+      "Instructor: paste the latest <code>Code.gs</code> into Apps Script and deploy a new version of the web app that <code>API_URL</code> in config.js points to.";
+    document.body.prepend(el);
+  }
+
   function resetDemo() { try { localStorage.removeItem(DEMO_KEY); } catch (_) {} }
 
   const store = {
@@ -278,5 +291,5 @@
     el.hidden = !L.length;
   }
 
-  window.Trials = { CFG, DEMO, completed, esc, fmtTime, parseTime, initials, hue, standings, getData, post, resetDemo, store, renderLogos };
+  window.Trials = { CFG, DEMO, completed, backendOutdated, warnOutdated, esc, fmtTime, parseTime, initials, hue, standings, getData, post, resetDemo, store, renderLogos };
 })();

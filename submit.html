@@ -313,6 +313,7 @@ const match = () => teams.find(t => t.team.toLowerCase() === norm($("team").valu
 async function load() {
   try {
     const d = await getData(); teams = d.teams; videos = d.videos || [];
+    if (Trials.backendOutdated(d)) { Trials.warnOutdated("submitting team cards"); $("submit").disabled = true; }
     $("teamList").innerHTML = teams.map(t => `<option value="${esc(t.team)}">`).join("");
     $("editSel").innerHTML = `<option value="">— Select your team —</option>` +
       [...teams].sort((a, b) => a.team.localeCompare(b.team)).map(t => `<option>${esc(t.team)}</option>`).join("");

@@ -185,6 +185,7 @@ if (DEMO || KEY) unlock(KEY || "demo"); else lock();
 async function refresh() {
   try {
     data = await getData(); list = standings(data);
+    if (Trials.backendOutdated(data)) Trials.warnOutdated("timing and run results");
     $("status").className = "pill " + (DEMO ? "demo" : "live");
     $("status").innerHTML = `<span class="dot"></span><span>${DEMO ? "Demo" : "Connected"}</span>`;
     renderTeams(); renderLog(); renderStandings(); renderMeta();

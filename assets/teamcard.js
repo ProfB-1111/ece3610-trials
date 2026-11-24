@@ -37,6 +37,12 @@ window.teamCard = function (t, opts = {}) {
     return `<div class="qa ${txt ? "" : "ph"}"><span>${esc(label)}</span><p>${esc(txt || p.hint || "")}</p></div>`;
   }).join("");
 
+  // Photo gallery (full card only): tap a thumbnail to show it large.
+  const plist = (t.photos || []).filter(p => p && p.url);
+  const gallery = (opts.full || opts.stack) && plist.length > 1
+    ? `<div class="tc-gallery">${plist.map(p => `<button type="button" class="${p.url === t.photo ? "on" : ""}" data-gal="${esc(p.url)}"
+        style="background-image:url('${esc(p.url)}')" aria-label="Show photo"></button>`).join("")}</div>` : "";
+
   // Training videos: playable buttons on the full card, a single chip on the compact one.
   const vlist = t.videos || [];
   const vids = !vlist.length ? "" : (opts.full || opts.stack)
@@ -47,6 +53,7 @@ window.teamCard = function (t, opts = {}) {
   return `<div class="tcard ${opts.full ? "full" : ""} ${opts.stack ? "stack" : ""}">
     <div class="tc-left">
       ${photo}
+      ${gallery}
       <div class="tc-stats">
         <div class="${t.ec ? "ec" : ""}"><span>${tr("rank", "Rank")}</span><b>${t.rank ?? "—"}</b></div>
         <div><span>${tr("best", "Best")}</span><b>${fmtTime(t.best)}</b></div>
@@ -63,3 +70,12 @@ window.teamCard = function (t, opts = {}) {
     </div>
   </div>`;
 };
+
+// Gallery thumbnails swap the large photo in their own card.
+document.addEventListener("click", e => {
+  const g = e.target.closest("[data-gal]"); if (!g) return;
+  e.stopPropagation();
+  const card = g.closest(".tcard"), ph = card && card.querySelector(".tc-ph");
+  if (ph) { ph.style.backgroundImage = `url('${g.dataset.gal.replace(/'/g, "%27")}')`; ph.textContent = ""; }
+  g.parentElement.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === g));
+}, true);

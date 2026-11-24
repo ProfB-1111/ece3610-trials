@@ -147,6 +147,9 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .tcard.full .qa p { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .qa.ph p { color: var(--dim); font-style: italic; }
+.tc-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px; }
+.tc-gallery button { aspect-ratio: 4/3; border-radius: 6px; border: 2px solid var(--line-2); background-size: cover; background-position: center; cursor: pointer; padding: 0; opacity: .7; }
+.tc-gallery button.on, .tc-gallery button:hover { border-color: var(--gold); opacity: 1; }
 .tc-videos { margin-top: 14px; }
 .tc-videos > span { display: block; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
 .tc-videos > div { display: flex; flex-wrap: wrap; gap: 6px; }

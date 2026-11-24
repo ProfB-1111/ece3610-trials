@@ -39,6 +39,24 @@
   .nm-row .who { font: 700 1.05rem var(--display); margin-bottom: 8px; }
   .nm-row label { display: flex; gap: 10px; align-items: flex-start; font-size: .88rem; line-height: 1.45; color: #d4dce5; cursor: pointer; }
   .nm-row input { width: 18px; height: 18px; flex: none; margin-top: 1px; accent-color: #16a34a; }
+  /* photo list */
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: -4px 0 16px; }
+  .pgrid:empty { display: none; }
+  .ptile { position: relative; border-radius: 10px; overflow: hidden; border: 2px solid var(--line-2); background: #05070a; }
+  .ptile.main { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,196,81,.18); }
+  .ptile .img { aspect-ratio: 4/3; background-size: cover; background-position: center; }
+  .ptile .bar { display: flex; gap: 4px; padding: 5px; background: rgba(7,9,13,.92); }
+  .ptile .bar button { flex: 1; font: 600 .72rem var(--body); color: var(--muted); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 4px; cursor: pointer; }
+  .ptile .bar button:hover { color: var(--text); }
+  .ptile .bar .star { flex: 2; }
+  .ptile.main .bar .star { color: #1a1200; background: var(--gold); border-color: var(--gold); }
+  .ptile .tagnew { position: absolute; top: 6px; left: 6px; font: 700 .6rem var(--body); letter-spacing: .1em; padding: 2px 6px; border-radius: 4px; background: var(--live); color: #04201d; }
+  .pchecks { display: grid; gap: 14px; }
+  .pcheck { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 14px; align-items: start; padding: 12px; border: 1px solid var(--line-2); border-radius: 12px; }
+  .pcheck img { width: 100%; border-radius: 8px; display: block; }
+  .pcheck .choice { margin-top: 0; padding: 10px 12px; font-size: .88rem; }
+  .pcheck .choice + .choice { margin-top: 8px; }
+  @media (max-width: 640px) { .pcheck { grid-template-columns: 1fr; } }
   /* new / edit switch */
   .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 12px; background: #0a0f14; border: 1px solid var(--line-2); margin-bottom: 20px; }
   .mode { font: 600 .9rem var(--body); color: var(--muted); background: transparent; border: 0; border-radius: 9px; padding: 10px; cursor: pointer; }
@@ -156,11 +174,12 @@
     <p class="sec-note">Fill in at least one. The more you share, the better your card — a few sentences each is perfect.</p>
     <div id="textFields"></div>
 
-    <div class="sec">Robot photo</div>
+    <div class="sec">Robot photos</div>
+    <p class="sec-note">Add up to 8 photos. Tap <b>★</b> on the one you want on your team card; the others appear in your card's photo gallery.</p>
     <label class="field">
-      <div class="drop" id="drop"><input type="file" id="photo" accept="image/*"><span id="dropTxt"></span></div>
+      <div class="drop" id="drop"><input type="file" id="photo" accept="image/*" multiple><span id="dropTxt"></span></div>
     </label>
-    <div class="photo-actions" id="photoActions" hidden><button class="btn sm" id="adjustBtn" type="button">✂ Adjust crop</button></div>
+    <div class="pgrid" id="pgrid"></div>
 
     <div class="sec">Training videos (optional)</div>
     <p class="sec-note">Share videos of your robot in training: test runs, early attempts, glorious crashes. They appear on your team card for viewers to watch.
@@ -217,12 +236,8 @@
 
     <section data-step="check" hidden>
       <h2>Photo check</h2>
-      <p class="sub">This photo will be shown publicly on your team card. Please check it before your card goes live.</p>
-      <img class="chk-img" id="chkImg" alt="Your robot photo">
-      <label class="choice"><input type="radio" name="faces" value="no">
-        <span><b>No faces.</b> I confirm this photo does not show any person's face.</span></label>
-      <label class="choice"><input type="radio" name="faces" value="yes">
-        <span><b>This photo shows people's faces.</b> On the next page, everyone shown must be identified and confirm for themselves.</span></label>
+      <p class="sub">Your new photos will be shown publicly. For each one, confirm whether it shows anyone's face. Photos with faces get a consent page next, where everyone shown confirms.</p>
+      <div class="pchecks" id="pchecks"></div>
     </section>
 
     <section data-step="vcheck" hidden>
@@ -244,7 +259,7 @@
     </section>
 
     <section data-step="consent" hidden>
-      <h2>Photo consent</h2>
+      <h2 id="consentTitle">Photo consent</h2>
       <p class="sub"><b>Tap each person's face</b> in the photo to number them. Then <b>each person shown</b> enters their name and checks their own box — pass the device around.
         These names are kept privately by your instructor as a consent record.</p>
       <div class="tagger" id="tagger"><img id="tagImg" alt="Tap faces to number them" draggable="false"><div id="marks"></div></div>
@@ -270,7 +285,13 @@ Trials.renderLogos($("logos"));
 $("course").textContent = CFG.COURSE;
 $("title").textContent = CFG.TITLE + (DEMO ? " · DEMO MODE" : "");
 
-let teams = [], videos = [], photoData = null;
+let teams = [], videos = [];
+// Photos: { kind: "new", data, src, name, crop, faces: "" | "no" | "yes", people: [] }  or  { kind: "old", id, url }
+let photos = [], mainPhoto = 0;
+const MAX_PHOTOS = 8;
+const isNewPhoto = p => p.kind === "new";
+const photoUrl = p => p ? (p.kind === "new" ? p.data : p.url) : "";
+const mainUrl = () => photoUrl(photos[mainPhoto]);
 
 // ---- build the three comment boxes from config
 $("textFields").innerHTML = TEXT_FIELDS.map(k => {
@@ -306,7 +327,7 @@ let mode = "new";
 function clearForm() {
   $("team").value = ""; $("robot").value = ""; setMembers("");
   TEXT_FIELDS.forEach(k => $("f_" + k).value = "");
-  photoData = null; srcImg = null; resetDrop(); vids = []; renderVids(); renderExisting(); teamHelp(); counts();
+  photos = []; mainPhoto = 0; srcImg = null; resetDrop(); renderPhotos(); vids = []; renderVids(); renderExisting(); teamHelp(); counts();
 }
 function setMode(m, team) {
   mode = m;
@@ -326,7 +347,10 @@ function loadCard(name) {
   $("robot").value = t.robot || "";
   setMembers(t.members);
   TEXT_FIELDS.forEach(k => $("f_" + k).value = t[k] || "");
-  if (t.photo) $("dropTxt").innerHTML = `✓ Current photo kept <small class="muted">· choose a new photo to replace it</small>`;
+  const list = t.photos && t.photos.length ? t.photos : [];
+  photos = list.map(x => ({ kind: "old", id: x.id, url: x.url }));
+  mainPhoto = Math.max(0, photos.findIndex(x => x.url === t.photo));
+  renderPhotos();
   $("editHelp").textContent = "Your card is loaded. Change anything you like, then save.";
   counts(); renderExisting(); preview();
 }
@@ -367,20 +391,55 @@ $("addMember").onclick = () => addMember();
 
 function preview() {
   const existing = match();
-  const t = { team: norm($("team").value), robot: norm($("robot").value), members: memberValues().join(", "), photo: photoData || existing?.photo || "",
+  const t = { team: norm($("team").value), robot: norm($("robot").value), members: memberValues().join(", "), photo: mainUrl(), photos: photos.map(p => ({ url: photoUrl(p) })),
               runs: [], best: null, avg: null, rank: null };
   TEXT_FIELDS.forEach(k => t[k] = $("f_" + k).value.trim());
   $("pv").innerHTML = teamCard(t, { stack: true, full: true, preview: true });
 }
 
 // ---- photo: resize to max 1200px JPEG in the browser
-const DROP_TXT = `Tap to choose a photo or drag one here<br><small class="muted">Photos with people's faces need everyone's consent · landscape works best · resized automatically</small>`;
-function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; $("photoActions").hidden = true; }
+const DROP_TXT = `Tap to add photos or drag them here<br><small class="muted">Up to 8 · you'll crop each one · photos with people's faces need everyone's consent</small>`;
+function resetDrop() { $("dropTxt").innerHTML = DROP_TXT; $("photo").value = ""; }
+
+// Photo grid: ★ = card photo, ✂ = adjust crop (new photos), ✕ = remove
+function renderPhotos() {
+  if (mainPhoto >= photos.length) mainPhoto = 0;
+  $("pgrid").innerHTML = photos.map((p, i) => `
+    <div class="ptile ${i === mainPhoto ? "main" : ""}" data-p="${i}">
+      <div class="img" style="background-image:url('${esc(photoUrl(p))}')"></div>
+      ${isNewPhoto(p) ? `<span class="tagnew">NEW</span>` : ""}
+      <div class="bar">
+        <button type="button" class="star" data-pa="main" title="Show this photo on the team card">${i === mainPhoto ? "★ Card photo" : "☆ Use on card"}</button>
+        ${isNewPhoto(p) ? `<button type="button" data-pa="crop" title="Adjust crop">✂</button>` : ""}
+        <button type="button" data-pa="rm" title="Remove this photo">✕</button>
+      </div></div>`).join("");
+  $("dropTxt").innerHTML = photos.length >= MAX_PHOTOS ? `Maximum of ${MAX_PHOTOS} photos reached<br><small class="muted">Remove one to add another</small>` : DROP_TXT;
+  preview();
+}
+$("pgrid").addEventListener("click", async e => {
+  const b = e.target.closest("[data-pa]"); if (!b) return;
+  const i = +b.closest(".ptile").dataset.p, p = photos[i];
+  if (b.dataset.pa === "main") mainPhoto = i;
+  if (b.dataset.pa === "rm") { photos.splice(i, 1); if (mainPhoto > i || mainPhoto >= photos.length) mainPhoto = Math.max(0, mainPhoto - 1); }
+  if (b.dataset.pa === "crop") {
+    srcImg = p.src; srcName = p.name; Object.assign(crop, p.crop, { used: true });
+    const data = await openCropper(false);
+    if (data) { p.data = data; p.crop = { s: crop.s, cx: crop.cx, cy: crop.cy }; }
+  }
+  renderPhotos();
+});
 resetDrop();
 // ---- photo: choose -> crop/position in a 4:3 frame -> 1200x900 JPEG
 let srcImg = null, srcName = "";
+async function handleFiles(list) {
+  for (const f of [...list]) {
+    if (photos.length >= MAX_PHOTOS) { toast(`⚠ At most ${MAX_PHOTOS} photos`, true); break; }
+    await handleFile(f);
+  }
+  $("photo").value = "";
+}
 async function handleFile(f) {
-  if (!f || !f.type.startsWith("image/")) return toast("⚠ Please choose an image file", true);
+  if (!f || !f.type.startsWith("image/")) return toast(`⚠ ${esc(f ? f.name : "That file")} isn't an image`, true);
   try {
     const url = URL.createObjectURL(f);
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
@@ -390,13 +449,15 @@ async function handleFile(f) {
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
     URL.revokeObjectURL(url);
-    const prev = { srcImg, srcName };
     srcImg = c; srcName = f.name;
-    if (!(await openCropper(true))) { srcImg = prev.srcImg; srcName = prev.srcName; }   // cancelled: keep old photo
+    const data = await openCropper(true);                     // null if cancelled: photo not added
+    if (data) {
+      photos.push({ kind: "new", data, src: c, name: f.name, crop: { s: crop.s, cx: crop.cx, cy: crop.cy }, faces: "", people: [] });
+      if (photos.length === 1) mainPhoto = 0;
+      renderPhotos();
+    }
   } catch (e) { toast("⚠ Could not read that image (try JPG or PNG)", true); }
-  $("photo").value = "";
 }
-$("adjustBtn").onclick = () => srcImg && openCropper(false);
 
 const OUT_W = 1200, OUT_H = 900;
 const crop = { s: 1, cx: 0, cy: 0, min: 1, fill: 1, max: 4 };
@@ -413,13 +474,9 @@ function openCropper(fresh) {
 }
 function closeCropper(ok) {
   $("cropper").hidden = true; document.body.style.overflow = "";
-  if (ok) {
-    crop.used = true;
-    photoData = $("cropCanvas").toDataURL("image/jpeg", .85);
-    $("dropTxt").innerHTML = `✓ ${esc(srcName)} <small class="muted">(${OUT_W}×${OUT_H}, ${Math.round(photoData.length * .75 / 1024)} KB) · click to choose a different photo</small>`;
-    $("photoActions").hidden = false; preview();
-  }
-  cropResolve && cropResolve(ok); cropResolve = null;
+  const data = ok ? $("cropCanvas").toDataURL("image/jpeg", .85) : null;
+  if (ok) crop.used = true;
+  cropResolve && cropResolve(data); cropResolve = null;
 }
 $("cropOk").onclick = () => closeCropper(true);
 $("cropCancel").onclick = () => closeCropper(false);
@@ -480,10 +537,10 @@ fr.addEventListener("pointermove", e => {
 const endPtr = e => { ptrs.delete(e.pointerId); pinch0 = null; if (!ptrs.size) fr.classList.remove("dragging"); };
 fr.addEventListener("pointerup", endPtr); fr.addEventListener("pointercancel", endPtr);
 $("drop").onclick = e => { if (e.target.id !== "photo") $("photo").click(); };
-$("photo").onchange = e => handleFile(e.target.files[0]);
+$("photo").onchange = e => handleFiles(e.target.files);
 $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
 $("drop").ondragleave = () => $("drop").classList.remove("over");
-$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); handleFile(e.dataTransfer.files[0]); };
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); handleFiles(e.dataTransfer.files); };
 
 // ---- training videos: choose (any size) -> uploaded after the card is saved
 let vids = [];                                   // { file, state: "" | "up" | "ok" | "err", pct, msg }
@@ -525,11 +582,16 @@ function formData() {
   if (team.length < 2) return toast("⚠ Enter your team name", true);
   const texts = Object.fromEntries(TEXT_FIELDS.map(k => [k, $("f_" + k).value.trim()]));
   if (!TEXT_FIELDS.some(k => texts[k])) return toast("⚠ Fill in at least one of the comment boxes", true);
-  if (!photoData && !match()?.photo) return toast("⚠ Add a photo of your robot", true);
+  if (!photos.length) return toast("⚠ Add at least one photo of your robot", true);
   const members = memberValues();
   if (new Set(members.map(m => m.toLowerCase())).size !== members.length) return toast("⚠ A team member name is listed twice", true);
   if (!DEMO && !$("code").value.trim()) return toast("⚠ Enter the submission code", true);
-  return { team, robot: norm($("robot").value), members, ...texts, photo: photoData || "", code: $("code").value };
+  // New photos carry their photo-check answer and consent; kept photos are referenced by Drive ID.
+  const photoList = photos.map(p => isNewPhoto(p)
+    ? { data: p.data, faces: p.faces === "yes", statement: CFG.PHOTO_CONSENT_STATEMENT,
+        consents: p.faces === "yes" ? p.people.map(x => ({ x: x.x, y: x.y, name: x.name.trim(), confirmed: x.confirmed })) : [] }
+    : { keep: p.id });
+  return { team, robot: norm($("robot").value), members, ...texts, photos: photoList, main: mainPhoto, code: $("code").value };
 }
 
 $("submit").onclick = () => { const f = formData(); if (f) openFlow(f); };
@@ -645,39 +707,78 @@ function openFlow(f) {
   pendNames = f.members.filter(n => !prev.includes(n.toLowerCase()));
   nameOk = {}; people = []; vpeople = [];
   document.querySelectorAll('input[name=faces], input[name=vfaces]').forEach(r => r.checked = false);
-  if (f.photo) { $("chkImg").src = f.photo; $("tagImg").src = f.photo; }
+  photos.forEach(p => { if (isNewPhoto(p)) { p.faces = ""; p.people = []; } });
+  renderPChecks();
   plan();
   if (!steps.length) return upload(f, {}, $("submit"));   // nothing to confirm
   cur = 0; renderNames(); renderPeople(); renderVPeople(); showStep();
   $("flow").hidden = false; document.body.style.overflow = "hidden";
 }
 function closeFlow() { $("flow").hidden = true; document.body.style.overflow = ""; }
+function stepLabel(k) {
+  if (k.startsWith("consent:")) {
+    const newOnes = photos.filter(isNewPhoto), n = newOnes.indexOf(photos[+k.split(":")[1]]) + 1;
+    return newOnes.length > 1 ? `Photo ${n} consent` : "Photo consent";
+  }
+  return STEP_LABEL[k];
+}
+// Photo check: one row per new photo
+function renderPChecks() {
+  const newOnes = photos.map((p, i) => [p, i]).filter(([p]) => isNewPhoto(p));
+  $("pchecks").innerHTML = newOnes.map(([p, i], n) => `
+    <div class="pcheck" data-p="${i}"><img src="${esc(p.data)}" alt="New photo ${n + 1}">
+      <div>
+        ${newOnes.length > 1 ? `<div class="upper muted" style="margin-bottom:8px">Photo ${n + 1}${i === mainPhoto ? " · card photo" : ""}</div>` : ""}
+        <label class="choice"><input type="radio" name="pf_${i}" value="no" ${p.faces === "no" ? "checked" : ""}>
+          <span><b>No faces.</b> This photo doesn't show any person's face.</span></label>
+        <label class="choice"><input type="radio" name="pf_${i}" value="yes" ${p.faces === "yes" ? "checked" : ""}>
+          <span><b>Shows people's faces.</b> Everyone shown confirms next.</span></label>
+      </div></div>`).join("");
+}
+$("pchecks").addEventListener("change", e => {
+  const row = e.target.closest(".pcheck"); if (!row) return;
+  photos[+row.dataset.p].faces = e.target.value; plan(); showStep();
+});
 function plan() {
   steps = [];
   if (pendNames.length) steps.push("names");
-  if (F.photo) { steps.push("check"); if (facesChoice() === "yes") steps.push("consent"); }
+  if (photos.some(isNewPhoto)) {
+    steps.push("check");
+    photos.forEach((p, i) => { if (isNewPhoto(p) && p.faces === "yes") steps.push("consent:" + i); });
+  }
   if (vids.length) { steps.push("vcheck"); if (vFacesChoice() === "yes") steps.push("vconsent"); }
 }
 function showStep() {
-  document.querySelectorAll("#flow section[data-step]").forEach(sec => sec.hidden = sec.dataset.step !== steps[cur]);
-  $("steps").innerHTML = steps.map((k, i) => `<span class="${i < cur ? "past" : i === cur ? "on" : ""}">${i + 1} · ${STEP_LABEL[k]}</span>`).join("");
+  const key = steps[cur] || "";
+  document.querySelectorAll("#flow section[data-step]").forEach(sec => sec.hidden = sec.dataset.step !== key.split(":")[0]);
+  if (key.startsWith("consent:")) {                            // tag faces on this particular photo
+    const i = +key.split(":")[1], newOnes = photos.filter(isNewPhoto);
+    people = photos[i].people;
+    $("tagImg").src = photos[i].data;
+    $("consentTitle").textContent = newOnes.length > 1 ? `Photo consent · photo ${newOnes.indexOf(photos[i]) + 1} of ${newOnes.length}` : "Photo consent";
+    renderPeople();
+  }
+  $("steps").innerHTML = steps.map((k, i) => `<span class="${i < cur ? "past" : i === cur ? "on" : ""}">${i + 1} · ${stepLabel(k)}</span>`).join("");
   $("flowBack").textContent = cur === 0 ? "← Back to form" : "← Back";
   $("flow").scrollTop = 0; nextBtn();
 }
-const facesChoice = () => document.querySelector('input[name=faces]:checked')?.value;
 const vFacesChoice = () => document.querySelector('input[name=vfaces]:checked')?.value;
 const personOk = p => p.name.trim() && p.confirmed;
 function stepState(k) {   // [isComplete, waitingMessage]
   if (k === "names") { const n = pendNames.filter(x => nameOk[x]).length; return [n === pendNames.length, `Waiting for ${pendNames.length - n} of ${pendNames.length} to confirm`]; }
-  if (k === "check") return [!!facesChoice(), "Choose an option"];
+  if (k === "check") {
+    const newOnes = photos.filter(isNewPhoto), left = newOnes.filter(p => !p.faces).length;
+    return [left === 0, newOnes.length > 1 ? `Answer for ${left} more photo${left > 1 ? "s" : ""}` : "Choose an option"];
+  }
   if (k === "vcheck") return [!!vFacesChoice(), "Choose an option"];
   if (k === "vconsent") {
     const n = vpeople.filter(personOk).length;
     return [vpeople.length > 0 && n === vpeople.length, vpeople.length ? `Waiting for ${vpeople.length - n} of ${vpeople.length} to confirm` : "Add each person shown"];
   }
-  if (k === "consent") {
-    if (!people.length) return [false, "Tap each face in the photo"];
-    const n = people.filter(personOk).length; return [n === people.length, `Waiting for ${people.length - n} of ${people.length} to confirm`];
+  if (k.startsWith("consent:")) {
+    const pp = photos[+k.split(":")[1]].people;
+    if (!pp.length) return [false, "Tap each face in the photo"];
+    const n = pp.filter(personOk).length; return [n === pp.length, `Waiting for ${pp.length - n} of ${pp.length} to confirm`];
   }
   return [true, ""];
 }
@@ -695,13 +796,6 @@ $("flowNext").onclick = () => {
     nameConsents: pendNames.map(n => ({ name: n, confirmed: !!nameOk[n] })),
     nameStatement: CFG.NAME_CONSENT_STATEMENT
   };
-  if (F.photo) {
-    extra.faces = facesChoice() === "yes";
-    if (extra.faces) {
-      extra.statement = CFG.PHOTO_CONSENT_STATEMENT;
-      extra.consents = people.map(p => ({ x: p.x, y: p.y, name: p.name.trim(), confirmed: p.confirmed }));
-    }
-  }
   upload(f, extra, $("flowNext"));
 };
 document.querySelectorAll('input[name=faces], input[name=vfaces]').forEach(r => r.onchange = () => { plan(); showStep(); });

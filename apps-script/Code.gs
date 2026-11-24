@@ -25,7 +25,7 @@ const VIDEO_FOLDER_ID_DEFAULT = '1DKP5mgN7CmcEyYiT5QCc-U92g2GuRwLn';
 const SMALL_VIDEO_MAX_MB = 25;   // fallback path through Apps Script (base64) for small clips
 // ---------------------------------------------------------------------------
 
-const TEAM_HEADERS  = ['Team', 'Robot', 'Members', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated',
+const TEAM_HEADERS  = ['Team', 'Robot', 'Members', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Photos', 'Updated',
                        'FacesInPhoto', 'PhotoCheckedAt'];          // last two are private (never published)
 // Private record of photo consent — this sheet is never published.
 const CONSENT_HEADERS = ['Timestamp', 'Team', 'Type', 'PhotoFileId', 'VideoId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
@@ -37,6 +37,7 @@ const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timer
 const MAX_TEXT = 400;       // per comment field
 const MAX_TEAM_NAME = 40;
 const MAX_MEMBERS = 8;
+const MAX_PHOTOS = 8;   // photos per team; one is the card photo (PhotoURL), all are listed in Photos (JSON)
 const CACHE_KEY = 'trials_data_v1';
 
 /** Run once from the editor to create sheets + photo folder. */
@@ -129,7 +130,8 @@ function readAll_() {
     .map(r => ({
       team: get(r, 'Team').trim(), robot: get(r, 'Robot'), members: get(r, 'Members'),
       comment: get(r, 'Comment'), interesting: get(r, 'Interesting'), learned: get(r, 'Learned'),
-      photo: get(r, 'PhotoURL'), updated: get(r, 'Updated')
+      photo: get(r, 'PhotoURL'), photos: parsePhotos_(get(r, 'Photos'), get(r, 'PhotoFileId'), get(r, 'PhotoURL')),
+      updated: get(r, 'Updated')
     }));
   const runs = rows_(ss.getSheetByName('Runs'))
     .filter(r => r[0])
@@ -163,37 +165,36 @@ function submitTeam_(b) {
   const vals = isNew ? new Array(ncol).fill('') : sh.getRange(row, 1, 1, ncol).getValues()[0];
   const set = (name, v) => { vals[H[name]] = v; };
 
-  let photoUrl = vals[H['PhotoURL']], photoId = vals[H['PhotoFileId']];
   // Member names (optional, public): every name not already on the card must be confirmed by that person.
   const memberName = n => String(n || '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   const members = (Array.isArray(b.members) ? b.members : []).map(memberName).filter(Boolean);
   if (members.length > MAX_MEMBERS) throw new Error('At most ' + MAX_MEMBERS + ' team member names.');
   const nameConsents = Array.isArray(b.nameConsents) ? b.nameConsents : [];
 
-  // Photo check: required for every new photo. Faces => every person shown must confirm.
-  let consents = [];
-  if (b.photo) {
-    if (b.faces !== true && b.faces !== false) throw new Error('Please complete the photo check.');
-    if (b.faces) {
-      consents = Array.isArray(b.consents) ? b.consents : [];
-      if (!consents.length) throw new Error('Mark each person in the photo and have them confirm.');
-      consents.forEach((p, i) => {
-        if (!clip_(p.name, 80)) throw new Error('Person ' + (i + 1) + ': name is required.');
-        if (p.confirmed !== true) throw new Error('Person ' + (i + 1) + ' has not confirmed.');
-      });
-    }
-  }
-
-  if (b.photo) {
-    const m = String(b.photo).match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
-    if (!m) throw new Error('Photo must be an image.');
-    const blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], safeName_(team) + '_' + Date.now() + '.jpg');
-    const file = getPhotoFolder_().createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    if (photoId) { try { DriveApp.getFileById(photoId).setTrashed(true); } catch (_) {} }
-    photoId = file.getId();
-    photoUrl = 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w1200';
-  }
+  // Photos: list of { data: new image (base64) } or { keep: existing Drive id }; b.main = card photo index.
+  // Every new photo needs the photo check; faces => every person shown must confirm.
+  const prevPhotos = parsePhotos_(vals[H['Photos']], vals[H['PhotoFileId']], vals[H['PhotoURL']]);
+  let items;
+  if (Array.isArray(b.photos)) items = b.photos;
+  else if (b.photo) items = [{ data: b.photo, faces: b.faces, consents: b.consents, statement: b.statement }];  // older page version
+  else items = prevPhotos.map(p => ({ keep: p.id }));
+  if (!items.length) throw new Error('Add at least one photo of your robot.');
+  if (items.length > MAX_PHOTOS) throw new Error('At most ' + MAX_PHOTOS + ' photos.');
+  items.forEach((it, k) => {
+    const label = items.length > 1 ? 'Photo ' + (k + 1) + ': ' : '';
+    if (it.data) {
+      if (!/^data:image\/[\w+.-]+;base64,/.test(String(it.data))) throw new Error(label + 'must be an image.');
+      if (it.faces !== true && it.faces !== false) throw new Error(label + 'please complete the photo check.');
+      if (it.faces) {
+        const c = Array.isArray(it.consents) ? it.consents : [];
+        if (!c.length) throw new Error(label + 'mark each person in the photo and have them confirm.');
+        c.forEach((p, i) => {
+          if (!clip_(p.name, 80)) throw new Error(label + 'person ' + (i + 1) + ' needs a name.');
+          if (p.confirmed !== true) throw new Error(label + 'person ' + (i + 1) + ' has not confirmed.');
+        });
+      }
+    } else if (!prevPhotos.some(p => p.id === it.keep)) throw new Error('A photo you kept no longer exists. Reload the page and try again.');
+  });
 
   // Names already on this team's card were confirmed before; only new ones need confirmation now.
   const prev = String(vals[H['Members']] || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
@@ -203,34 +204,52 @@ function submitTeam_(b) {
     if (!c || c.confirmed !== true) throw new Error(n + ' has not confirmed their name may be shown.');
   });
 
+  // All checks passed: save new photos, drop removed ones.
+  const photoConsents = [], outPhotos = [];
+  items.forEach(it => {
+    if (it.keep) { outPhotos.push(prevPhotos.find(p => p.id === it.keep)); return; }
+    const m = String(it.data).match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
+    const file = getPhotoFolder_().createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1],
+      safeName_(team) + '_' + Date.now() + '_' + outPhotos.length + '.jpg'));
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    const rec = { id: file.getId(), url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1200' };
+    outPhotos.push(rec);
+    if (it.faces) photoConsents.push({ fileId: rec.id, consents: it.consents, statement: it.statement || b.statement });
+  });
+  prevPhotos.filter(p => !outPhotos.some(o => o.id === p.id))
+    .forEach(p => { try { DriveApp.getFileById(p.id).setTrashed(true); } catch (_) {} });
+  const main = outPhotos[Math.min(Math.max(0, Math.floor(Number(b.main) || 0)), outPhotos.length - 1)];
+  const newCount = items.filter(it => it.data).length;
+
   if (isNew) set('Team', team);                  // keep original spelling on resubmit
   set('Robot', clip_(b.robot, 60));
   set('Members', members.join(', '));
   set('Comment', clip_(b.comment, MAX_TEXT));
   set('Interesting', clip_(b.interesting, MAX_TEXT));
   set('Learned', clip_(b.learned, MAX_TEXT));
-  set('PhotoURL', photoUrl);
-  set('PhotoFileId', photoId);
+  set('PhotoURL', main.url);
+  set('PhotoFileId', main.id);
+  set('Photos', JSON.stringify(outPhotos));
   set('Updated', new Date().toISOString());
-  if (b.photo) {
-    set('FacesInPhoto', b.faces ? 'Yes (' + consents.length + ')' : 'No');
+  if (newCount) {
+    set('FacesInPhoto', photoConsents.length ? 'Yes (' + photoConsents.length + ' of ' + newCount + ' new)' : 'No');
     set('PhotoCheckedAt', new Date().toISOString());
   }
   sh.getRange(row, 1, 1, ncol).setValues([vals]);
 
-  if (consents.length || newNames.length) {
+  if (photoConsents.length || newNames.length) {
     const csh = ensureSheet_(sh.getParent(), 'Consents', CONSENT_HEADERS);
     const ch = headerMap_(csh), cn = csh.getLastColumn(), now = new Date().toISOString();
     const row_ = fields => { const r = new Array(cn).fill(''); Object.keys(fields).forEach(k => { if (ch[k] != null) r[ch[k]] = fields[k]; }); return r; };
     const rowsOut = [];
     newNames.forEach((n, i) => rowsOut.push(row_({ Timestamp: now, Team: team, Type: 'Name', Person: i + 1, Name: n,
       Confirmed: 'Yes', Statement: clip_(b.nameStatement, 500) })));
-    consents.forEach((p, i) => rowsOut.push(row_({ Timestamp: now, Team: team, Type: 'Photo', PhotoFileId: photoId, Person: i + 1,
-      MarkX: isFinite(p.x) ? Number(p.x) : '', MarkY: isFinite(p.y) ? Number(p.y) : '',
-      Name: clip_(p.name, 80), Confirmed: 'Yes', Statement: clip_(b.statement, 500) })));
+    photoConsents.forEach(pc => pc.consents.forEach((p, i) => rowsOut.push(row_({ Timestamp: now, Team: team, Type: 'Photo',
+      PhotoFileId: pc.fileId, Person: i + 1, MarkX: isFinite(p.x) ? Number(p.x) : '', MarkY: isFinite(p.y) ? Number(p.y) : '',
+      Name: clip_(p.name, 80), Confirmed: 'Yes', Statement: clip_(pc.statement, 500) }))));
     csh.getRange(csh.getLastRow() + 1, 1, rowsOut.length, cn).setValues(rowsOut);
   }
-  return { ok: true, photo: photoUrl, created: isNew };
+  return { ok: true, photo: main.url, created: isNew };
 }
 
 function setCurrent_(b) {
@@ -469,6 +488,12 @@ function videoSmall_(b) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   recordVideo_(team, fileName, bytes.length, b, 'ready', file.getId());
   return { ok: true, fileId: file.getId() };
+}
+
+/** Team photo list from the Photos column (JSON); falls back to the single card photo. */
+function parsePhotos_(json, id, url) {
+  try { const a = JSON.parse(json || '[]'); if (Array.isArray(a) && a.length) return a.filter(p => p && p.id && p.url); } catch (_) {}
+  return id ? [{ id: String(id), url: String(url || 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1200') }] : [];
 }
 
 function getPhotoFolder_() {

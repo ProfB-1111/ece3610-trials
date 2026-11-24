@@ -6,7 +6,7 @@ Static site for GitHub Pages + a Google Sheet backend (via Apps Script).
 |---|---|---|
 | `index.html` | Viewers | Leaderboard, podium, YouTube live stream, timer, spotlight, How It Works |
 | `admin.html` | Instructor | Team on course, up next, stopwatch, record/edit/delete runs |
-| `submit.html` | Students | Team card: team name (typed), robot name, robot photo, three comment prompts. Optional member names and photos with faces, each confirmed by the people involved. |
+| `submit.html` | Students | Create or **edit** a team card: team name, robot name, up to 8 photos (★ card photo), three comment prompts, optional member names, training videos. Names, faces and people in videos are confirmed by the people involved. |
 | `rules.html` | Anyone | Standalone How It Works page |
 
 Everything you'd normally change is in **`assets/config.js`**.
@@ -85,6 +85,12 @@ Keys: `Space` start/stop · `Enter` save · `Esc` reset (press twice while runni
 - Text you edit lives in `config.js` as pairs: `TITLE` / `TITLE_KO`, `SUBTITLE_KO`, `CONSENT_DISCLAIMER_KO`, `label_ko` (schedule days, team card headings), and `HOW_IT_WORKS` / `HOW_IT_WORKS_KO`.
 - Fixed interface text (buttons, stage labels, etc.) is in `assets/i18n.js`.
 - Team-submitted text is shown as written (not translated). Submit and admin pages are English only.
+
+## Team photos and training videos
+- **Photos:** up to 8 per team, each cropped on the page; the ★ photo is the card photo, the rest show in a gallery in the full team card. Stored in your Drive folder *ECE3610 Trials Robot Photos*; the Teams sheet keeps the card photo (`PhotoURL`) and the full list (`Photos`). Removed photos go to the Drive trash.
+- **Training videos:** uploaded straight from the student's browser to your Drive folder (ID in `Code.gs`, `VIDEO_FOLDER_ID_DEFAULT`, or Script Property `VIDEO_FOLDER_ID`). Each video gets a row in the **Videos** sheet; set **Visible** to `No` to hide one from the site without deleting it. People shown are recorded in **Consents** (Type = Video).
+- **One-time re-authorization after updating `Code.gs` for videos:** in the Apps Script editor, run **`setup`** once and approve the new permission ("Connect to an external service"), then deploy a new version. Without this, video uploads fail.
+- **Edit my team card:** students pick their team and everything loads (photos, comments, names, existing videos). Share a direct link: `submit.html?edit=Team%20Name`.
 
 ## Notes
 - **Photos with faces:** after **Submit**, every new photo goes through a *photo check*. If the team says it shows faces, they tap each face to number it, and each person shown enters their name and confirms the consent statement (`PHOTO_CONSENT_STATEMENT` in `config.js`). The card can't be submitted until everyone marked has confirmed. Names, marker positions, the statement and a timestamp are saved in the private **Consents** sheet (Type = Photo); the Teams sheet also records `FacesInPhoto` (No / Yes (n)). To remove a photo, clear its `PhotoURL` cell in the Teams sheet.

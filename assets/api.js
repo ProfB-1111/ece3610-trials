@@ -2,7 +2,7 @@
 (function () {
   const CFG = window.TRIALS_CONFIG;
   const DEMO = !CFG.API_URL;
-  const DEMO_KEY = "ece3610_trials_demo_v3";
+  const DEMO_KEY = "ece3610_trials_demo_v4";
 
   // ------------------------------------------------------------ utilities
   // Completed run: "OK", or "ODO" = completed with the odometry bonus (EC). Both rank by time.
@@ -117,7 +117,7 @@
       robot: ["Sparky", "Bolt", "Rover-2", "Zippy", "Ferrite", "Viper", "Tick", "Gizmo"][i],
       members: ["Sample Student A, Sample Student B, Sample Student C", "", "", "Sample Student D, Sample Student E", "", "", "", ""][i],
       comment: comments[i], interesting: interesting[i] || "", learned: learned[i] || "",
-      photo: placeholderPhoto(n), updated: ""
+      photo: placeholderPhoto(n), photos: [{ id: "seed" + i, url: placeholderPhoto(n) }], updated: ""
     }));
     const runs = []; let t = Date.now() - 3600e3;
     const times = { 0: [52.31, 48.77, null], 1: [61.02, 55.4], 2: [null, 49.95, 47.12], 3: [58.66], 4: [45.9, 50.2], 5: [70.1, null] };
@@ -210,16 +210,22 @@
         t.members = members.join(", ");
         Object.assign(t, { robot: body.robot || "", comment: body.comment || "", interesting: body.interesting || "",
           learned: body.learned || "", updated: new Date().toISOString() });
-        if (body.photo) {
-          if (body.faces !== true && body.faces !== false) throw new Error("Please complete the photo check.");
-          if (body.faces && !(body.consents || []).length) throw new Error("Mark each person in the photo and have them confirm.");
-          (body.consents || []).forEach((p, i) => {
-            if (!String(p.name || "").trim()) throw new Error(`Person ${i + 1}: name is required.`);
-            if (p.confirmed !== true) throw new Error(`Person ${i + 1} has not confirmed.`);
+        {
+          const prev = t.photos && t.photos.length ? t.photos : (t.photo ? [{ id: "demo-p0", url: t.photo }] : []);
+          const items = Array.isArray(body.photos) ? body.photos : prev.map(p => ({ keep: p.id }));
+          if (!items.length) throw new Error("Add at least one photo of your robot.");
+          items.forEach((it, k) => {
+            if (!it.data) { if (!prev.some(p => p.id === it.keep)) throw new Error("A photo you kept no longer exists."); return; }
+            if (it.faces !== true && it.faces !== false) throw new Error(`Photo ${k + 1}: please complete the photo check.`);
+            const c = it.consents || [];
+            if (it.faces && (!c.length || !c.every(p => String(p.name || "").trim() && p.confirmed === true)))
+              throw new Error(`Photo ${k + 1}: everyone shown must confirm.`);
           });
-          t.photo = body.photo;
-          d.consents = (d.consents || []).concat((body.consents || []).map((p, i) =>
-            ({ ts: new Date().toISOString(), team: t.team, person: i + 1, name: p.name })));
+          const out = items.map((it, k) => it.data ? { id: "demo-p" + Date.now() + k, url: it.data } : prev.find(p => p.id === it.keep));
+          t.photos = out;
+          t.photo = out[Math.min(Math.max(0, Number(body.main) || 0), out.length - 1)].url;
+          items.forEach((it, k) => (it.consents || []).forEach((p, i) =>
+            (d.consents = d.consents || []).push({ ts: new Date().toISOString(), team: t.team, photo: k + 1, person: i + 1, name: p.name })));
         }
         break;
       }

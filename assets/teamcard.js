@@ -37,6 +37,13 @@ window.teamCard = function (t, opts = {}) {
     return `<div class="qa ${txt ? "" : "ph"}"><span>${esc(label)}</span><p>${esc(txt || p.hint || "")}</p></div>`;
   }).join("");
 
+  // Training videos: playable buttons on the full card, a single chip on the compact one.
+  const vlist = t.videos || [];
+  const vids = !vlist.length ? "" : (opts.full || opts.stack)
+    ? `<div class="tc-videos"><span>${esc(tr("videos", "Training videos"))}</span><div>${vlist.map((v, i) =>
+        `<button class="vbtn" type="button" data-video="${esc(v.fileId)}" data-vteam="${esc(t.team)}">▶ ${esc(tr("videoN", "Video " + (i + 1), { n: i + 1 }))}</button>`).join("")}</div></div>`
+    : `<div class="tc-vchip">▶ ${esc(tr(vlist.length === 1 ? "videosCount1" : "videosCount", vlist.length + " training video" + (vlist.length > 1 ? "s" : ""), { n: vlist.length }))}</div>`;
+
   return `<div class="tcard ${opts.full ? "full" : ""} ${opts.stack ? "stack" : ""}">
     <div class="tc-left">
       ${photo}
@@ -52,6 +59,7 @@ window.teamCard = function (t, opts = {}) {
       ${t.robot ? `<div class="tc-robot">${esc(t.robot)}</div>` : ""}
       ${t.members ? `<div class="tc-members">${esc(t.members)}</div>` : ""}
       <div class="tc-qa">${qa || `<p class="muted" style="margin:0">${tr("noComments", "No comments submitted yet.")}</p>`}</div>
+      ${vids}
     </div>
   </div>`;
 };

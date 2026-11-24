@@ -608,7 +608,23 @@ $("modalClose").onclick = () => $("modal").classList.remove("open");
 $("modal").onclick = e => { if (e.target.id === "modal") $("modal").classList.remove("open"); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").classList.remove("open"); });
 $("howBtn").onclick = () => openModal(`<h2>${esc(I18N.t("how"))}</h2><div id="howModal"></div>`, () => renderHowItWorks($("howModal")));
+// Training video player (Google Drive preview) inside the popup
+function openVideo(fileId, team) {
+  const t = list.find(x => x.team === team), vs = (t && t.videos) || [];
+  const n = vs.findIndex(v => v.fileId === fileId) + 1;
+  const player = fileId.startsWith("demo-") ? `<div class="vdemo">Demo video (plays from Google Drive on the live site)</div>`
+    : `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview" allow="autoplay; fullscreen" allowfullscreen title="${esc(team)}"></iframe>`;
+  openModal(`<h2>${esc(team)} · ${esc(I18N.t("videoN", { n: n || 1 }))}</h2><div class="vplayer">${player}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn sm" type="button" data-backcard="${esc(team)}">${esc(I18N.t("backToCard"))}</button>
+      ${vs.map((v, i) => `<button class="vbtn" type="button" data-video="${esc(v.fileId)}" data-vteam="${esc(team)}" ${v.fileId === fileId ? 'style="opacity:.5"' : ""}>▶ ${esc(I18N.t("videoN", { n: i + 1 }))}</button>`).join("")}
+    </div>`);
+}
 document.addEventListener("click", e => {
+  const vb = e.target.closest("[data-video]");
+  if (vb) { e.stopPropagation(); openVideo(vb.dataset.video, vb.dataset.vteam); return; }
+  const bc = e.target.closest("[data-backcard]");
+  if (bc) { const t = list.find(x => x.team === bc.dataset.backcard); if (t) openModal(teamCard(t, { full: true })); return; }
   const el = e.target.closest("[data-team]"); if (!el) return;
   const t = list.find(x => x.team === el.dataset.team); if (t) openModal(teamCard(t, { full: true }));
 });

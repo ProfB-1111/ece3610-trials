@@ -87,6 +87,10 @@ window.TRIALS_CONFIG = {
   NAME_CONSENT_STATEMENT:
     "I agree that my name may be displayed publicly on my team's card on the ECE 3610 Final Course Trials website and live stream.",
 
+  // Consent statement each person shown in a team's training videos agrees to.
+  VIDEO_CONSENT_STATEMENT:
+    "I appear in these training videos, and I agree that they may be displayed publicly on the ECE 3610 Final Course Trials website and live stream.",
+
   // Consent statement each person in a team photo agrees to (submission page).
   // Consent records are stored privately in the "Consents" sheet, never published.
   PHOTO_CONSENT_STATEMENT:

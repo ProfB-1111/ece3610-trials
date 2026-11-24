@@ -147,6 +147,15 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .tcard.full .qa p { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .qa.ph p { color: var(--dim); font-style: italic; }
+.tc-videos { margin-top: 14px; }
+.tc-videos > span { display: block; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.tc-videos > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.vbtn { font: 600 .82rem var(--body); color: var(--text); background: var(--accent-soft); border: 1px solid rgba(229,72,77,.45); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.vbtn:hover { background: rgba(229,72,77,.25); }
+.tc-vchip { display: inline-block; margin-top: 10px; font: 600 .74rem var(--body); color: var(--accent); border: 1px solid rgba(229,72,77,.4); border-radius: 999px; padding: 3px 10px; align-self: flex-start; }
+.vplayer { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+.vplayer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vplayer .vdemo { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: .9rem; }
 .qa.ph { border-left-color: var(--line-2); }
 /* compact (leaderboard spotlight): photo shrinks so stats + runs always fit */
 .tcard:not(.full):not(.stack) .tc-ph { aspect-ratio: auto; flex: 1 1 0; min-height: 48px;

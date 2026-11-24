@@ -48,6 +48,7 @@
       if (!byTeam[k]) byTeam[k] = { team: r.team, robot: "", members: "", comment: "", interesting: "", learned: "", photo: "", runs: [] };
       byTeam[k].runs.push({ ...r, n: byTeam[k].runs.length + 1 });
     });
+    (data.videos || []).forEach(v => { const k = String(v.team).toLowerCase(); if (byTeam[k]) (byTeam[k].videos = byTeam[k].videos || []).push(v); });
     const list = Object.values(byTeam).map(t => {
       const ok = t.runs.filter(completed).map(r => r.time);
       const best = ok.length ? Math.min(...ok) : null;
@@ -172,6 +173,28 @@
         d.runs = d.runs.filter(x => x.id !== body.id);
         if (st.lastRunId === body.id) Object.assign(st, { timerState: "idle", lastRunId: "" });
         break;
+      case "videoStart": case "videoSmall": {
+        const t = d.teams.find(x => x.team.toLowerCase() === String(body.team || "").trim().toLowerCase());
+        if (!t) throw new Error("Submit your team card first, then add videos.");
+        if (body.faces !== true && body.faces !== false) throw new Error("Please complete the video check.");
+        const cs = body.consents || [];
+        if (body.faces && (!cs.length || !cs.every(p => String(p.name || "").trim() && p.confirmed === true)))
+          throw new Error("Everyone shown in the videos must confirm.");
+        const id = crypto.randomUUID();
+        d.pendingVideos = d.pendingVideos || {};
+        d.pendingVideos[id] = { team: t.team, name: body.name || "video" };
+        demoSave(d);
+        if (body.action === "videoStart") return { ok: true, id, uploadUrl: "demo:" + id };
+        body = { action: "videoDone", id, fileId: "demo-" + id };   // small path: finish right away
+      }
+      // falls through
+      case "videoDone": {
+        const dd = demoLoad(), p = (dd.pendingVideos || {})[body.id];
+        if (!p) throw new Error("Upload not found.");
+        dd.videos = (dd.videos || []).concat({ team: p.team, fileId: body.fileId, name: p.name, ts: new Date().toISOString() });
+        delete dd.pendingVideos[body.id]; demoSave(dd);
+        return { ok: true, fileId: body.fileId };
+      }
       case "submit": {
         const name = String(body.team || "").replace(/\s+/g, " ").trim();
         if (name.length < 2 || name.length > 40) throw new Error("Team name must be 2–40 characters.");
@@ -210,7 +233,7 @@
   async function getData() {
     if (DEMO) {
       const d = demoLoad();
-      return { ok: true, ...d, serverNow: Date.now(), _recv: Date.now() };
+      return { ok: true, videos: [], ...d, serverNow: Date.now(), _recv: Date.now() };
     }
     const t0 = Date.now();
     const res = await fetch(CFG.API_URL + "?action=data&t=" + t0, { cache: "no-store" });

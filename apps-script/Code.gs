@@ -20,12 +20,17 @@
 //   ADMIN_KEY   = your private key, typed into admin.html
 //   SUBMIT_CODE = the code you give students for submit.html
 const PHOTO_FOLDER_NAME = 'ECE3610 Trials Robot Photos';
+// Training videos go to this Drive folder (yours). Override with Script Property VIDEO_FOLDER_ID if needed.
+const VIDEO_FOLDER_ID_DEFAULT = '1DKP5mgN7CmcEyYiT5QCc-U92g2GuRwLn';
+const SMALL_VIDEO_MAX_MB = 25;   // fallback path through Apps Script (base64) for small clips
 // ---------------------------------------------------------------------------
 
 const TEAM_HEADERS  = ['Team', 'Robot', 'Members', 'Comment', 'Interesting', 'Learned', 'PhotoURL', 'PhotoFileId', 'Updated',
                        'FacesInPhoto', 'PhotoCheckedAt'];          // last two are private (never published)
 // Private record of photo consent — this sheet is never published.
-const CONSENT_HEADERS = ['Timestamp', 'Team', 'Type', 'PhotoFileId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
+const CONSENT_HEADERS = ['Timestamp', 'Team', 'Type', 'PhotoFileId', 'VideoId', 'Person', 'MarkX', 'MarkY', 'Name', 'Confirmed', 'Statement'];
+// Training videos. Set Visible to "No" to hide one from the site without deleting it.
+const VIDEO_HEADERS = ['ID', 'Timestamp', 'Team', 'FileName', 'SizeMB', 'Status', 'FileId', 'FacesInVideo', 'Visible'];
 const RUN_HEADERS   = ['ID', 'Timestamp', 'Team', 'TimeSec', 'Status', 'Notes'];
 // timerState: idle (at the start line) | running (on course) | stopped (finished, not saved) | done (run saved)
 const STATE_DEFAULT = { currentTeam: '', nextTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, updatedMs: 0, lastRunId: '' };
@@ -40,6 +45,11 @@ function setup() {
   ensureSheet_(ss, 'Teams', TEAM_HEADERS);
   ensureSheet_(ss, 'Runs', RUN_HEADERS);
   ensureSheet_(ss, 'Consents', CONSENT_HEADERS);
+  ensureSheet_(ss, 'Videos', VIDEO_HEADERS);
+  // Touch the services the video upload needs so the authorization prompt asks for them now.
+  DriveApp.getFolderById(videoFolderId_()).getName();
+  ScriptApp.getOAuthToken();
+  UrlFetchApp.getRequest('https://www.googleapis.com/');
   const st = ensureSheet_(ss, 'State', ['Key', 'Value']);
   if (st.getLastRow() < 2) {
     Object.keys(STATE_DEFAULT).forEach(k => st.appendRow([k, STATE_DEFAULT[k]]));
@@ -83,6 +93,9 @@ function doPost(e) {
     let result;
     switch (body.action) {
       case 'submit':      result = submitTeam_(body); break;
+      case 'videoStart':  result = videoStart_(body); break;
+      case 'videoDone':   result = videoDone_(body); break;
+      case 'videoSmall':  result = videoSmall_(body); break;
       case 'checkKey':    requireAdmin_(body); result = { ok: true }; break;
       case 'setCurrent':  requireAdmin_(body); result = setCurrent_(body); break;
       case 'setNext':     requireAdmin_(body); result = setNext_(body); break;
@@ -125,7 +138,14 @@ function readAll_() {
       team: String(r[2]), time: r[3] === '' ? null : Number(r[3]),
       status: String(r[4] || 'OK'), notes: String(r[5] || '')
     }));
-  return { ok: true, teams: teams, runs: runs, state: readState_(), serverNow: Date.now() };
+  // Published training videos (uploaded and not hidden)
+  const vsh = ss.getSheetByName('Videos'), VH = headerMap_(vsh);
+  const vget = (r, k) => VH[k] == null ? '' : String(r[VH[k]] == null ? '' : r[VH[k]]);
+  const videos = rows_(vsh)
+    .filter(r => vget(r, 'Status') === 'ready' && vget(r, 'FileId') && vget(r, 'Visible').toLowerCase() !== 'no')
+    .map(r => ({ team: vget(r, 'Team'), fileId: vget(r, 'FileId'), name: vget(r, 'FileName'),
+                 ts: r[VH['Timestamp']] instanceof Date ? r[VH['Timestamp']].toISOString() : vget(r, 'Timestamp') }));
+  return { ok: true, teams: teams, runs: runs, videos: videos, state: readState_(), serverNow: Date.now() };
 }
 
 function submitTeam_(b) {
@@ -346,6 +366,109 @@ function findRow_(sh, col, value, caseInsensitive) {
     if (v === want) return i + 2;
   }
   return 0;
+}
+
+// ------------------------------------------------------------- Videos ----
+// Large files never pass through Apps Script: videoStart_ opens a Drive "resumable upload"
+// session in your folder and returns its one-time URL; the browser sends the file there
+// directly, then calls videoDone_. Small clips can use videoSmall_ (base64) as a fallback.
+
+function videoFolderId_() {
+  return PropertiesService.getScriptProperties().getProperty('VIDEO_FOLDER_ID') || VIDEO_FOLDER_ID_DEFAULT;
+}
+
+/** Shared checks: pass key, existing team, consent for people shown. Returns the team's exact name. */
+function videoChecks_(b) {
+  if (String(b.code || '').trim() !== secret_('SUBMIT_CODE')) throw new Error('Incorrect submission code.');
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Teams');
+  const H = headerMap_(sh), row = findRow_(sh, H['Team'], String(b.team || '').replace(/\s+/g, ' ').trim(), true);
+  if (!row) throw new Error('Submit your team card first, then add videos.');
+  if (b.faces !== true && b.faces !== false) throw new Error('Please complete the video check.');
+  if (b.faces) {
+    const c = Array.isArray(b.consents) ? b.consents : [];
+    if (!c.length) throw new Error('List each person shown in the videos and have them confirm.');
+    c.forEach((p, i) => {
+      if (!clip_(p.name, 80)) throw new Error('Person ' + (i + 1) + ': name is required.');
+      if (p.confirmed !== true) throw new Error('Person ' + (i + 1) + ' has not confirmed.');
+    });
+  }
+  return String(sh.getRange(row, H['Team'] + 1).getValue()).trim();
+}
+
+/** Adds a Videos row (+ Consents rows when people are shown). Returns the row ID. */
+function recordVideo_(team, fileName, sizeBytes, b, status, fileId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const vsh = ensureSheet_(ss, 'Videos', VIDEO_HEADERS), VH = headerMap_(vsh), n = vsh.getLastColumn();
+  const id = Utilities.getUuid(), now = new Date();
+  const r = new Array(n).fill(''); const put = (k, v) => { if (VH[k] != null) r[VH[k]] = v; };
+  put('ID', id); put('Timestamp', now); put('Team', team); put('FileName', fileName);
+  put('SizeMB', Math.round(sizeBytes / 1048576 * 10) / 10); put('Status', status); put('FileId', fileId || '');
+  put('FacesInVideo', b.faces ? 'Yes (' + b.consents.length + ')' : 'No'); put('Visible', 'Yes');
+  vsh.appendRow(r);
+  if (b.faces) {
+    const csh = ensureSheet_(ss, 'Consents', CONSENT_HEADERS), CH = headerMap_(csh), cn = csh.getLastColumn();
+    const out = b.consents.map((p, i) => {
+      const c = new Array(cn).fill(''); const cp = (k, v) => { if (CH[k] != null) c[CH[k]] = v; };
+      cp('Timestamp', now.toISOString()); cp('Team', team); cp('Type', 'Video'); cp('VideoId', id); cp('Person', i + 1);
+      cp('Name', clip_(p.name, 80)); cp('Confirmed', 'Yes'); cp('Statement', clip_(b.statement, 500));
+      return c;
+    });
+    csh.getRange(csh.getLastRow() + 1, 1, out.length, cn).setValues(out);
+  }
+  return id;
+}
+
+function videoFileName_(team, name) {
+  const base = String(name || 'video').replace(/[^\w.\- ]+/g, '_').slice(-80);
+  return safeName_(team) + '_' + Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyyMMdd-HHmmss') + '_' + base;
+}
+
+function videoStart_(b) {
+  const team = videoChecks_(b);
+  const size = Number(b.size);
+  if (!(size > 0)) throw new Error('Empty video file.');
+  const mime = /^video\/[\w.+-]+$/.test(String(b.mime)) ? String(b.mime) : 'video/mp4';
+  const fileName = videoFileName_(team, b.name);
+  const headers = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(),
+                    'X-Upload-Content-Type': mime, 'X-Upload-Content-Length': String(size) };
+  // The page's origin lets the browser send the file to Google directly (CORS).
+  if (/^https?:\/\/[\w.-]+(:\d+)?$/.test(String(b.origin || ''))) headers.Origin = String(b.origin);
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id', {
+    method: 'post', contentType: 'application/json; charset=UTF-8', headers: headers, muteHttpExceptions: true,
+    payload: JSON.stringify({ name: fileName, parents: [videoFolderId_()], description: 'ECE 3610 training video · ' + team })
+  });
+  const h = res.getAllHeaders(), url = h.Location || h.location;
+  if (res.getResponseCode() !== 200 || !url) throw new Error('Could not start the upload (' + res.getResponseCode() + ').');
+  const id = recordVideo_(team, fileName, size, b, 'uploading', '');
+  return { ok: true, id: id, uploadUrl: url };
+}
+
+function videoDone_(b) {
+  if (String(b.code || '').trim() !== secret_('SUBMIT_CODE')) throw new Error('Incorrect submission code.');
+  const vsh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Videos'), VH = headerMap_(vsh);
+  const row = findRow_(vsh, VH['ID'], String(b.id || ''), false);
+  if (!row) throw new Error('Upload not found.');
+  const file = DriveApp.getFileById(String(b.fileId || ''));             // throws if it doesn't exist
+  let inFolder = false; const ps = file.getParents();
+  while (ps.hasNext()) if (ps.next().getId() === videoFolderId_()) inFolder = true;
+  if (!inFolder) throw new Error('Uploaded file is not in the video folder.');
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  vsh.getRange(row, VH['Status'] + 1).setValue('ready');
+  vsh.getRange(row, VH['FileId'] + 1).setValue(file.getId());
+  return { ok: true, fileId: file.getId() };
+}
+
+function videoSmall_(b) {
+  const team = videoChecks_(b);
+  const m = String(b.data || '').match(/^data:(video\/[\w.+-]+);base64,(.+)$/);
+  if (!m) throw new Error('Video must be a video file.');
+  const bytes = Utilities.base64Decode(m[2]);
+  if (bytes.length > SMALL_VIDEO_MAX_MB * 1048576) throw new Error('Video too large for this upload path.');
+  const fileName = videoFileName_(team, b.name);
+  const file = DriveApp.getFolderById(videoFolderId_()).createFile(Utilities.newBlob(bytes, m[1], fileName));
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  recordVideo_(team, fileName, bytes.length, b, 'ready', file.getId());
+  return { ok: true, fileId: file.getId() };
 }
 
 function getPhotoFolder_() {

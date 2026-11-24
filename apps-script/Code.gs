@@ -41,7 +41,7 @@ const MAX_PHOTOS = 8;   // photos per team; one is the card photo (PhotoURL), al
 // Bump BACKEND_VERSION whenever this file changes. The website checks it (MIN_BACKEND in
 // assets/api.js) and the read cache is keyed by it, so an older deployment of this project
 // can never hand its data to the newer one.
-const BACKEND_VERSION = 6;
+const BACKEND_VERSION = 7;
 const CACHE_KEY = 'trials_data_v' + BACKEND_VERSION;
 
 /** Run once from the editor to create sheets + photo folder. */
@@ -111,6 +111,7 @@ function doPost(e) {
       case 'addRun':      requireAdmin_(body); result = addRun_(body); break;
       case 'updateRun':   requireAdmin_(body); result = updateRun_(body); break;
       case 'deleteRun':   requireAdmin_(body); result = deleteRun_(body); break;
+      case 'deleteTeam':  requireAdmin_(body); result = deleteTeam_(body); break;
       default: result = { ok: false, error: 'Unknown action' };
     }
     CacheService.getScriptCache().remove(CACHE_KEY);
@@ -320,6 +321,53 @@ function deleteRun_(b) {
   sh.deleteRow(row);
   if (readState_().lastRunId === String(b.id)) writeState_({ timerState: 'idle', lastRunId: '' });   // its "Run complete" goes too
   return { ok: true };
+}
+
+/**
+ * Deletes a team completely (manage.html): its Teams row, all runs, video records and
+ * consent records, and moves its photos and videos to the Drive trash (recoverable 30 days).
+ */
+function deleteTeam_(b) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tsh = ss.getSheetByName('Teams'), H = headerMap_(tsh);
+  const row = findRow_(tsh, H['Team'], String(b.team || '').replace(/\s+/g, ' ').trim(), true);
+  if (!row) throw new Error('Team not found.');
+  const vals = tsh.getRange(row, 1, 1, tsh.getLastColumn()).getValues()[0];
+  const team = String(vals[H['Team']]).trim(), key = team.toLowerCase();
+
+  const files = new Set(parsePhotos_(vals[H['Photos']], vals[H['PhotoFileId']], vals[H['PhotoURL']]).map(p => p.id));
+  const vsh = ss.getSheetByName('Videos');
+  if (vsh) {
+    const VH = headerMap_(vsh);
+    rows_(vsh).forEach(r => { if (String(r[VH['Team']]).trim().toLowerCase() === key && r[VH['FileId']]) files.add(String(r[VH['FileId']])); });
+  }
+  let trashed = 0;
+  files.forEach(id => { try { DriveApp.getFileById(id).setTrashed(true); trashed++; } catch (_) {} });
+
+  const removed = {
+    files: trashed,
+    runs: deleteRowsWhere_(ss.getSheetByName('Runs'), 'Team', key),
+    videos: deleteRowsWhere_(vsh, 'Team', key),
+    consents: deleteRowsWhere_(ss.getSheetByName('Consents'), 'Team', key)
+  };
+  tsh.deleteRow(row);
+
+  const st = readState_(), patch = {};
+  if (st.currentTeam.trim().toLowerCase() === key) Object.assign(patch, { currentTeam: '', timerState: 'idle', timerStartMs: 0, timerElapsedMs: 0, lastRunId: '' });
+  if (st.nextTeam.trim().toLowerCase() === key) patch.nextTeam = '';
+  if (Object.keys(patch).length) writeState_(patch);
+  return { ok: true, team: team, removed: removed };
+}
+
+/** Deletes every row whose column `col` equals `key` (case-insensitive). Returns the count. */
+function deleteRowsWhere_(sh, col, key) {
+  if (!sh) return 0;
+  const H = headerMap_(sh); if (H[col] == null) return 0;
+  const data = rows_(sh); let n = 0;
+  for (let i = data.length - 1; i >= 0; i--) {                 // bottom-up keeps row numbers valid
+    if (String(data[i][H[col]]).trim().toLowerCase() === key) { sh.deleteRow(i + 2); n++; }
+  }
+  return n;
 }
 
 // ------------------------------------------------------------- Helpers ----

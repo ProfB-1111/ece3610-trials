@@ -8,6 +8,7 @@ Static site for GitHub Pages + a Google Sheet backend (via Apps Script).
 | `admin.html` | Instructor | Team on course, up next, stopwatch, record/edit/delete runs |
 | `submit.html` | Students | Create or **edit** a team card: team name, robot name, up to 8 photos (★ card photo), three comment prompts, optional member names, training videos. Names, faces and people in videos are confirmed by the people involved. |
 | `rules.html` | Anyone | Standalone How It Works page |
+| `manage.html` | Instructor | Manage team cards: search, view, edit, and **delete a team completely** (card, runs, videos, consent records, Drive photos/videos → trash). Admin key required. |
 
 Everything you'd normally change is in **`assets/config.js`**.
 

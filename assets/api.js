@@ -188,6 +188,20 @@
         body = { action: "videoDone", id, fileId: "demo-" + id };   // small path: finish right away
       }
       // falls through
+      case "deleteTeam": {
+        const key = String(body.team || "").trim().toLowerCase();
+        if (!d.teams.some(t => t.team.toLowerCase() === key)) throw new Error("Team not found.");
+        const runs = d.runs.filter(r => String(r.team).toLowerCase() === key).length;
+        const vids = (d.videos || []).filter(v => String(v.team).toLowerCase() === key).length;
+        d.teams = d.teams.filter(t => t.team.toLowerCase() !== key);
+        d.runs = d.runs.filter(r => String(r.team).toLowerCase() !== key);
+        d.videos = (d.videos || []).filter(v => String(v.team).toLowerCase() !== key);
+        d.consents = (d.consents || []).filter(c => String(c.team).toLowerCase() !== key);
+        if ((st.currentTeam || "").toLowerCase() === key) Object.assign(st, { currentTeam: "", timerState: "idle", timerStartMs: 0, timerElapsedMs: 0, lastRunId: "" });
+        if ((st.nextTeam || "").toLowerCase() === key) st.nextTeam = "";
+        demoSave(d);
+        return { ok: true, removed: { runs, videos: vids } };
+      }
       case "videoRemove": {
         const before = (d.videos || []).length;
         d.videos = (d.videos || []).filter(v => !(v.fileId === body.fileId && v.team.toLowerCase() === String(body.team).trim().toLowerCase()));
@@ -272,7 +286,7 @@
 
   /** The current backend always returns these fields. If they're missing, the website is
    *  talking to an older Apps Script deployment, so a page should warn instead of failing quietly. */
-  const MIN_BACKEND = 6;   // must match BACKEND_VERSION in apps-script/Code.gs
+  const MIN_BACKEND = 7;   // must match BACKEND_VERSION in apps-script/Code.gs
   function backendOutdated(d) { return !DEMO && d && (!Array.isArray(d.videos) || (Number(d.version) || 0) < MIN_BACKEND); }
   function warnOutdated(where) {
     if (document.getElementById("outdatedWarn")) return;

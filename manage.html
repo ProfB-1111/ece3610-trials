@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Manage Team Cards · ECE 3610 Trials</title>
+<link rel="stylesheet" href="assets/common.css?v=202611241049">
+<style>
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .top-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
+  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar input { max-width: 340px; }
+  .toolbar .count { color: var(--muted); font-size: .9rem; }
+  .teams { display: flex; flex-direction: column; gap: 10px; }
+  .trow { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 12px 14px; }
+  .trow .th { width: 112px; aspect-ratio: 4/3; border-radius: 8px; background: #05070a center/cover no-repeat; border: 1px solid var(--line); display: grid; place-items: center; color: var(--dim); font: 700 1.2rem var(--display); }
+  .trow h3 { margin: 0; font: 700 1.1rem var(--display); overflow-wrap: anywhere; }
+  .trow .meta { color: var(--muted); font-size: .82rem; margin-top: 3px; overflow-wrap: anywhere; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .badge { font: 600 .72rem var(--mono); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); }
+  .badge.live { color: var(--live); border-color: rgba(61,214,198,.45); }
+  .badge.warn { color: var(--warn); border-color: rgba(251,191,36,.45); }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn.danger { color: #ffb4b6; border-color: rgba(229,72,77,.55); background: rgba(229,72,77,.08); }
+  .btn.danger:hover { background: rgba(229,72,77,.2); }
+  .btn.danger.solid { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .empty { color: var(--dim); text-align: center; padding: 40px; }
+  @media (max-width: 720px) { .trow { grid-template-columns: 80px minmax(0, 1fr); } .trow .th { width: 80px; } .acts { grid-column: 1 / -1; justify-content: flex-start; } }
+
+  .lock { max-width: 420px; margin: 12vh auto; padding: 28px; }
+  .lock h2 { margin: 0 0 6px; font: 700 1.3rem var(--display); }
+  .lock p { color: var(--muted); font-size: .9rem; margin: 0 0 18px; }
+
+  .modal { position: fixed; inset: 0; background: rgba(3,5,8,.75); backdrop-filter: blur(6px); display: none; place-items: center; z-index: 50; padding: 20px; overflow-y: auto; }
+  .modal.open { display: grid; }
+  .modal-box { width: min(860px, 100%); max-height: 92vh; overflow: auto; padding: 26px; position: relative; }
+  .modal-box.small { width: min(520px, 100%); }
+  .modal-close { position: absolute; top: 14px; right: 14px; }
+  .del h2 { margin: 0 0 10px; font: 700 1.3rem var(--display); color: #ffb4b6; }
+  .del ul { margin: 0 0 16px; padding-left: 20px; color: var(--muted); line-height: 1.7; font-size: .92rem; }
+  .del ul b { color: var(--text); }
+  .del .note { font-size: .8rem; color: var(--dim); margin: -6px 0 16px; }
+  .del .btns { display: flex; justify-content: flex-end; gap: 10px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logos" id="logos" hidden></div>
+    <div class="brand-mark" id="course">ECE 3610</div>
+    <div><div class="brand-title">Manage Team Cards</div><div class="brand-sub" id="title"></div></div>
+  </div>
+  <div class="top-right">
+    <span class="pill" id="status"><span class="dot"></span><span>Connecting</span></span>
+    <a class="btn sm" href="admin.html">Timing console</a>
+    <a class="btn sm" href="index.html" target="_blank">Leaderboard ↗</a>
+    <button class="btn sm ghost" id="lockBtn">Lock</button>
+  </div>
+</header>
+
+<div class="lock panel" id="gate" hidden>
+  <h2>Admin key required</h2>
+  <p>Enter the <code>ADMIN_KEY</code> you set in Apps Script. It's saved in this browser only.</p>
+  <label class="field"><span>Admin key</span><input type="password" id="keyIn" autocomplete="current-password"></label>
+  <button class="btn primary" id="keyBtn" style="width:100%">Unlock</button>
+</div>
+
+<main class="wrap" id="app" hidden>
+  <div class="toolbar">
+    <input id="search" placeholder="Search teams, robots, names…" autocomplete="off">
+    <span class="count" id="count"></span>
+    <span style="flex:1"></span>
+    <a class="btn sm" href="submit.html" target="_blank">+ New card (student page)</a>
+  </div>
+  <div class="teams" id="teams"></div>
+</main>
+
+<div class="modal" id="modal"><div class="modal-box panel" id="modalBox"><button class="btn sm ghost modal-close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script src="assets/config.js?v=202611241049"></script>
+<script src="assets/api.js?v=202611241049"></script>
+<script src="assets/teamcard.js?v=202611241049"></script>
+<script>
+const { CFG, DEMO, esc, fmtTime, initials, hue, standings, getData, post, store } = Trials;
+const $ = id => document.getElementById(id);
+Trials.renderLogos($("logos"));
+$("course").textContent = CFG.COURSE;
+$("title").textContent = CFG.TITLE + (DEMO ? " · DEMO MODE" : "");
+
+let KEY = store.get("ece3610_admin_key", "");
+let data = null, list = [];
+
+function toast(msg, err) {
+  const el = document.createElement("div"); el.className = "toast" + (err ? " err" : ""); el.innerHTML = msg;
+  $("toasts").appendChild(el); setTimeout(() => el.remove(), err ? 8000 : 5000);
+}
+
+// ---------------------------------------------------------------- key gate
+function lock() { KEY = ""; store.set("ece3610_admin_key", ""); $("app").hidden = true; $("gate").hidden = false; $("keyIn").focus(); }
+async function unlock(k) {
+  try { await post("checkKey", { key: k }); KEY = k; store.set("ece3610_admin_key", k); $("gate").hidden = true; $("app").hidden = false; refresh(); }
+  catch (e) { toast("⚠ " + esc(e.message), true); lock(); }
+}
+$("keyBtn").onclick = () => unlock($("keyIn").value.trim());
+$("keyIn").onkeydown = e => { if (e.key === "Enter") $("keyBtn").click(); };
+$("lockBtn").onclick = lock;
+if (DEMO || KEY) unlock(KEY || "demo"); else lock();
+
+// ---------------------------------------------------------------- data
+async function refresh() {
+  try {
+    data = await getData(); list = standings(data);
+    if (Trials.backendOutdated(data)) Trials.warnOutdated("deleting team cards");
+    $("status").className = "pill " + (DEMO ? "demo" : "live");
+    $("status").innerHTML = `<span class="dot"></span><span>${DEMO ? "Demo" : "Connected"}</span>`;
+    render();
+  } catch (e) {
+    $("status").className = "pill err"; $("status").innerHTML = `<span class="dot"></span><span>Offline</span>`;
+  }
+}
+const when = s => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+function summary(t) {
+  const photos = (t.photos && t.photos.length) || (t.photo ? 1 : 0);
+  const videos = (t.videos || []).length, runs = (t.runs || []).length;
+  return { photos, videos, runs };
+}
+function render() {
+  const q = $("search").value.trim().toLowerCase();
+  const st = data.state;
+  const shown = [...list].sort((a, b) => a.team.localeCompare(b.team))
+    .filter(t => !q || [t.team, t.robot, t.members].join(" ").toLowerCase().includes(q));
+  $("count").textContent = `${shown.length} of ${list.length} team${list.length === 1 ? "" : "s"}`;
+  $("teams").innerHTML = shown.length ? shown.map(t => {
+    const s = summary(t), h = hue(t.team);
+    const thumb = t.photo ? `style="background-image:url('${esc(t.photo)}')"` : `style="background:linear-gradient(135deg,hsl(${h},45%,30%),hsl(${(h+50)%360},50%,14%))"`;
+    const flags = [
+      t.team === st.currentTeam ? `<span class="badge live">ON COURSE</span>` : "",
+      t.team === st.nextTeam ? `<span class="badge warn">UP NEXT</span>` : "",
+      !t.updated ? `<span class="badge warn">no card submitted</span>` : ""
+    ].join("");
+    return `<div class="trow panel" data-team="${esc(t.team)}">
+      <div class="th" ${thumb}>${t.photo ? "" : esc(initials(t.team))}</div>
+      <div style="min-width:0">
+        <h3>${esc(t.team)}</h3>
+        <div class="meta">${[t.robot && "Robot: " + esc(t.robot), t.members && "Members: " + esc(t.members)].filter(Boolean).join(" · ") || "&nbsp;"}</div>
+        <div class="badges">
+          <span class="badge">📷 ${s.photos}</span><span class="badge">🎬 ${s.videos}</span>
+          <span class="badge">⏱ ${s.runs} run${s.runs === 1 ? "" : "s"}${t.best != null ? " · best " + fmtTime(t.best) : ""}</span>
+          ${t.updated ? `<span class="badge">updated ${esc(when(t.updated))}</span>` : ""}${flags}
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn sm" data-act="view">View</button>
+        <a class="btn sm" href="submit.html?edit=${encodeURIComponent(t.team)}" target="_blank">Edit</a>
+        <button class="btn sm danger" data-act="del">Delete…</button>
+      </div></div>`;
+  }).join("") : `<div class="empty">${list.length ? "No teams match your search." : "No team cards yet."}</div>`;
+}
+$("search").oninput = () => data && render();
+
+// ---------------------------------------------------------------- modal
+function openModal(html, small) { $("modalBody").innerHTML = html; $("modalBox").classList.toggle("small", !!small); $("modal").classList.add("open"); }
+function closeModal() { $("modal").classList.remove("open"); }
+$("modalClose").onclick = closeModal;
+$("modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+$("teams").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const t = list.find(x => x.team === b.closest(".trow").dataset.team); if (!t) return;
+  if (b.dataset.act === "view") openModal(teamCard(t, { full: true }));
+  if (b.dataset.act === "del") confirmDelete(t);
+});
+
+// ---------------------------------------------------------------- delete
+function confirmDelete(t) {
+  const s = summary(t);
+  openModal(`<div class="del">
+    <h2>Delete “${esc(t.team)}”?</h2>
+    <p style="margin:0 0 8px">This permanently removes everything for this team:</p>
+    <ul>
+      <li>The <b>team card</b>: text, robot name, member names</li>
+      <li><b>${s.photos} photo${s.photos === 1 ? "" : "s"}</b> and <b>${s.videos} training video${s.videos === 1 ? "" : "s"}</b>: files moved to your Drive trash</li>
+      <li><b>${s.runs} run${s.runs === 1 ? "" : "s"}</b> from the leaderboard${t.rank ? ` (currently <b>rank ${t.rank}</b>)` : ""}</li>
+      <li>Its <b>consent records</b>${t.team === data.state.currentTeam || t.team === data.state.nextTeam ? ", and it's cleared from the course / up next" : ""}</li>
+    </ul>
+    <p class="note">Drive keeps trashed files for 30 days, so photos and videos can still be recovered from the trash. Sheet rows can't be restored from here.</p>
+    <label class="field"><span>Type the team name to confirm: <b>${esc(t.team)}</b></span><input id="delConfirm" autocomplete="off"></label>
+    <div class="btns"><button class="btn ghost" id="delCancel">Cancel</button><button class="btn danger solid" id="delGo" disabled>Delete team</button></div>
+  </div>`, true);
+  const want = t.team.trim().toLowerCase();
+  $("delConfirm").focus();
+  $("delConfirm").oninput = () => $("delGo").disabled = $("delConfirm").value.trim().toLowerCase() !== want;
+  $("delConfirm").onkeydown = e => { if (e.key === "Enter" && !$("delGo").disabled) $("delGo").click(); };
+  $("delCancel").onclick = closeModal;
+  $("delGo").onclick = async () => {
+    $("delGo").disabled = true; $("delGo").textContent = "Deleting…";
+    try {
+      const r = await post("deleteTeam", { key: KEY, team: t.team });
+      const x = r.removed || {};
+      closeModal();
+      toast(`🗑️ Deleted <b>${esc(t.team)}</b>` + (DEMO ? "" : ` · ${x.files ?? 0} file(s) trashed, ${x.runs ?? 0} run(s), ${x.videos ?? 0} video record(s), ${x.consents ?? 0} consent record(s) removed`));
+      refresh();
+    } catch (e) {
+      toast("⚠ " + esc(e.message), true);
+      if (/admin key/i.test(e.message)) { closeModal(); lock(); }
+      $("delGo").disabled = false; $("delGo").textContent = "Delete team";
+    }
+  };
+}
+</script>
+</body>
+</html>

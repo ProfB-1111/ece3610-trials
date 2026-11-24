@@ -39,8 +39,8 @@ window.TRIALS_CONFIG = {
   //            leave "" to use YOUTUBE_ID above.
   // Testing outside these times: add ?live=1 to the page URL to force the stream.
   STREAM_SCHEDULE: [
-    { label: "Day 1", label_ko: "1일차", start: "2026-12-01T09:00:00+09:00", end: "2026-12-01T10:20:00+09:00", youtubeId: "" },
-    { label: "Day 2", label_ko: "2일차", start: "2026-12-03T09:00:00+09:00", end: "2026-12-03T10:20:00+09:00", youtubeId: "" }
+    { label: "Day 1", label_ko: "1일차", start: "2026-12-01T09:00:00+09:00", end: "2026-12-01T10:20:00+09:00", youtubeId: "FpIeLPwO_z4" },
+    { label: "Day 2", label_ko: "2일차", start: "2026-12-03T09:00:00+09:00", end: "2026-12-03T10:20:00+09:00", youtubeId: "UZs_PKBp82w" }
   ],
   STREAM_LEAD_MIN: 15,
   STREAM_TAIL_MIN: 30,
